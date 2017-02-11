@@ -227,7 +227,7 @@ class Template(PixelMap):
                 path = fname
             else:
                 # Search along path for the file
-                path1 = [os.path.join(sys.exec_prefix, "share/PixelMapCollection")]
+                path1 = [os.path.join(sys.exec_prefix, "share/pixmappy")]
                 for p in path1 + os.environ['CAL_PATH'].split(':'):
                     if os.path.isfile(os.path.join(p,fname)):
                         path = os.path.join(p,fname)
