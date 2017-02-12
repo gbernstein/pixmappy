@@ -2,16 +2,8 @@ from __future__ import print_function
 import sys,os,glob,re
 import select
 
-try:
-    from setuptools import setup
-    import setuptools
-    print("Using setuptools version",setuptools.__version__)
-except ImportError:
-    print('Unable to import setuptools.  Using distutils instead.')
-    from distutils.core import setup
-    import distutils
-    print("Using distutils version",distutils.__version__)
-
+from distutils.core import setup
+import distutils
 
 print('Python version = ',sys.version)
 py_version = "%d.%d"%sys.version_info[0:2]  # we check things based on the major.minor version.
