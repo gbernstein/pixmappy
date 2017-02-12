@@ -224,13 +224,17 @@ class Template(PixelMap):
         if fname not in self.libraries:
             # Read in a new library file
             path = None
-            if os.path.isabs(fname) or 'CAL_PATH' not in os.environ:
+            if os.path.isabs(fname): 
                 # Just attempt read from an absolute path or if there's no path
                 path = fname
             else:
                 # Search along path for the file
                 path1 = [files.data_dir]
-                for p in path1 + os.environ['CAL_PATH'].split(':'):
+                if 'CAL_PATH' in os.environ:
+                    path1 += os.environ['CAL_PATH'].split(':')
+                # And last resort will be current director
+                path1.append('')
+                for p in path1:
                     if os.path.isfile(os.path.join(p,fname)):
                         path = os.path.join(p,fname)
                         break
