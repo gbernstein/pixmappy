@@ -35,6 +35,8 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
+from .files import data_dir
+
 class PixelMap(object):
     ''' Base class for transformations from one 2d system ("pixel") to another ("world").
     Each derived class must implement __call__ to execute this transform on array of
@@ -224,9 +226,12 @@ class Template(PixelMap):
         if fname not in self.libraries:
             # Read in a new library file
             path = None
-            if os.path.isabs(fname): 
+            if os.path.isabs(fname):
                 # Just attempt read from an absolute path or if there's no path
                 path = fname
+            elif os.path.isfile(os.path.join(data_dir, fname)):
+                # If the file is in our data directory, use that.
+                path = os.path.join(data_dir, fname)
             else:
                 # Search along path for the file
                 path1 = [files.data_dir]
