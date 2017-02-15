@@ -29,6 +29,8 @@ else:
         :param origin:      Optional origin position for the image coordinate system.
                             If provided, it should be a PositionD or PositionI.
                             [default: None]
+        :param cache:       Cache this file's PixelMapCollection in the GalSimWCS.cache dict?
+                            [default: True]
         """
         _req_params = { "file_name" : str }
         _opt_params = { "origin" : galsim.PositionD, "ccdnum": int }
@@ -39,7 +41,7 @@ else:
         cache = dict()
 
         def __init__(self, file_name=None, dir=None, pmc=None, wcs_name=None,
-                     exp=None, ccdnum=None, origin=None):
+                     exp=None, ccdnum=None, origin=None, cache=True):
             if file_name is not None:
                 if dir is not None:
                     file_name = os.path.join(dir,file_name)
@@ -49,7 +51,8 @@ else:
                     pmc = self.cache[file_name]
                 else:
                     pmc = PixelMapCollection(file_name)
-                    self.cache[file_name] = pmc
+                    if cache:
+                        self.cache[file_name] = pmc
                 self._tag = 'file_name = ' + file_name
             else:
                 self._tag = 'pmc = '+repr(pmc)

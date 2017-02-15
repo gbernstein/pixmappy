@@ -20,12 +20,11 @@ def test_basic():
     wcs = pixmappy.GalSimWCS(file_name, dir=input_dir, exp=exp, ccdnum=ccdnum)
     t1 = time.time() - t0
     print('wcs = ',wcs)
-    print('wcs.pmc = ',wcs.pmc)
     print('wcs.exp = ',wcs.exp)
     print('wcs.ccdnum = ',wcs.ccdnum)
     print('wcs.ccdname = ',wcs.ccdname)
     print('wcs.wcs_name = ',wcs.wcs_name)
-    print('wcs.wcs_name = ',wcs.wcs_name)
+    print('time to load = ',t1)
 
     assert wcs.exp == exp
     assert wcs.ccdnum == ccdnum
@@ -33,6 +32,13 @@ def test_basic():
     assert wcs.wcs_name == 'D%s/%s'%(exp,ccdname)
 
     t0 = time.time()
+    wcs2 = pixmappy.GalSimWCS(file_name, dir=input_dir, exp=252223, ccdnum=11)
+    t2 = time.time() - t0
+    print('wcs2 = ',wcs2)
+    print('time to load = ',t2)
+    assert t2 < 0.1  # This should be fast since already in cache
+    assert wcs2.exp == 252223
+    assert wcs2.ccdnum == 11
 
     # Check that invalid initializations raise the appropriate errors
     np.testing.assert_raises(TypeError, pixmappy.GalSimWCS, file_name=file_name, pmc=wcs.pmc,
@@ -74,7 +80,6 @@ def test_complex():
     """Test a complex PMC file against some reference values"""
 
     wcs = pixmappy.GalSimWCS(os.path.join('input', 'complex_wcs.astro'), wcs_name='TEST/N1')
-
     ref = np.genfromtxt(os.path.join('input', 'complex_wcs.results'), names=True)
 
     for row in ref:
@@ -89,8 +94,34 @@ def test_complex():
     # This WCS requires a color term.  Raises an exception if you don't provide it.
     np.testing.assert_raises(Exception, wcs.toWorld, pos)
 
+def test_cache():
+    """Test the caching features of GalSimWCS"""
+
+    class MockGalSimWCS(pixmappy.GalSimWCS):
+        # Everything is the same, but we have our own cache dict so we don't have to
+        # worry about messing up other tests that may be using the cache.
+        cache = dict()
+
+    wcs = MockGalSimWCS('input/test.astro', wcs_name='D231890/N1')
+    assert len(wcs.cache) == 1
+    assert 'input/test.astro' in wcs.cache
+    wcs2 = MockGalSimWCS('input/test.astro', wcs_name='D469524/S13')
+    assert len(wcs2.cache) == 1
+    wcs3 = MockGalSimWCS('input/tpv.yaml', wcs_name='testwcs')
+    assert len(wcs3.cache) == 2
+    assert 'input/test.astro' in wcs.cache
+    assert 'input/tpv.yaml' in wcs.cache
+    wcs4 = MockGalSimWCS('input/complex_wcs.astro', wcs_name='TEST/N1', cache=False)
+    assert len(wcs3.cache) == 2
+    assert 'input/complex_wcs.astro' not in wcs.cache
+    wcs.clear_cache()
+    assert len(MockGalSimWCS.cache) == 0
+    # Can also call as a class method:
+    MockGalSimWCS.clear_cache()
+    assert len(MockGalSimWCS.cache) == 0
 
 if __name__ == '__main__':
     test_basic()
     test_tpv()
     test_complex()
+    test_cache()
