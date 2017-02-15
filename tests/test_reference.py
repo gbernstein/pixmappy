@@ -25,5 +25,22 @@ def test_tpv():
         np.testing.assert_allclose(sky1.dec.deg, sky2[1], rtol=1.e-8)
 
 
+def test_complex():
+    """Test a complex PMC file against some reference values"""
+
+    pmc = pixmappy.PixelMapCollection(os.path.join('input', 'complex_wcs.astro'))
+    wcs = pmc.getWCS('TEST/N1')
+
+    ref = np.genfromtxt(os.path.join('input', 'complex_wcs.results'), names=True)
+
+    for row in ref:
+        print(row)
+        coords = wcs.toSky( (row['xpix'], row['ypix']), c=row['color'])
+        ra = coords.icrs.ra.deg
+        dec = coords.icrs.dec.deg
+        np.testing.assert_allclose(ra, row['RA'], rtol=1.e-6)
+        np.testing.assert_allclose(dec, row['Dec'], rtol=1.e-6)
+
 if __name__ == '__main__':
     test_tpv()
+    test_complex()

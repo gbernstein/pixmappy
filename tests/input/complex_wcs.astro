@@ -1,0 +1,109 @@
+PixelMapCollection: This is a serialized PixelMapCollection
+TEST:
+  Type: Poly
+  XMin: -1
+  XMax: 1
+  YMin: -1
+  YMax: 1
+  XPoly:
+    SumOrder: true
+    OrderX: 3
+    Coefficients: [4.753451793309431e-05, 1.000109832315537, -0.001695325278773028, 6.25804301697107e-06, -4.781164936515412e-06, 3.996791058466437e-06, -5.366895498837441e-06, 1.157043353543615e-05, -6.519820840235799e-06, 9.229130580913791e-06]
+  YPoly:
+    SumOrder: true
+    OrderX: 3
+    Coefficients: [9.243418408189842e-06, 0.001585229753068556, 1.000054176916366, -6.949563014491779e-06, 3.936107013191105e-06, 9.303730108546111e-06, -9.346033175032325e-07, 5.309229631975801e-07, 1.345066019191671e-05, -8.396058488737419e-06]
+  Tolerance: 2.778e-07
+TEST/N1:
+  Type: Composite
+  Elements:
+    - TEST/N1/base
+    - TEST/N1/reproject
+TEST/N1/base:
+  Type: Composite
+  Elements:
+    - g20130829/N1
+    - TEST
+TEST/N1/reproject:
+  Type: Reprojection
+  InProjection:
+    Type: Gnomonic
+    Orientation:
+      RA: 357.333831312
+      Dec: -59.05055469159998
+      PA: 0
+    Xi: 0
+    Eta: 0
+  OutProjection:
+    Type: Gnomonic
+    Orientation:
+      RA: 358.9999999999999
+      Dec: -59.5
+      PA: 0
+    Xi: 0
+    Eta: 0
+  ScaleFactor: 0.0174532925199433
+g/N1/color:
+  Type: Color
+  Reference: 0.61
+  Function:
+    Type: Linear
+    Coefficients: [-2.008252062591854e-05, 0.9999740470268519, 1.701381720487465e-06, -2.694100229930706e-06, -3.356349311374476e-06, 0.9999901630314523]
+g/N1/highedge:
+  Type: Template
+  HasSplit: false
+  Filename: astroedges1.yaml
+  LowTable: N1/high
+  Parameter: 0.916452324457517
+g/N1/lowedge:
+  Type: Template
+  HasSplit: false
+  Filename: astroedges1.yaml
+  LowTable: N1/low
+  Parameter: 1.006287139381253
+g/N1/poly:
+  Type: Poly
+  XMin: 0
+  XMax: 2048
+  YMin: 0
+  YMax: 4096
+  XPoly:
+    SumOrder: true
+    OrderX: 4
+    Coefficients: [-0.9319933917507073, -3.078141226853805e-05, 0.1492306682426781, 9.815271663048702e-06, 1.268218860665042e-05, -5.785607634562312e-05, 1.758774808736572e-07, 4.888220710790452e-06, -3.27759703149537e-06, 5.770577590298642e-05, -2.123924760352814e-06, 1.169063403136334e-06, -2.100304170744695e-06, -1.720077783572145e-06, -5.773256759045303e-06]
+  YPoly:
+    SumOrder: true
+    OrderX: 4
+    Coefficients: [-0.08211024317967078, -0.07482492792256287, -0.0001380783073650383, 3.36086102964426e-06, -3.420770975705619e-05, -1.264612338649887e-05, -3.462660701032691e-08, 1.083554664501165e-06, -1.033099589237893e-05, 2.332103669826083e-06, -8.458684953773544e-07, 2.946822961892809e-06, -3.745162827013689e-07, 2.868725220321231e-06, 5.80890680913523e-07]
+  Tolerance: 2.777777777777778e-07
+g/N1/rings:
+  Type: Template
+  HasSplit: false
+  Filename: astrorings4.yaml
+  LowTable: N1
+  Parameter: -0.8970478149373377
+g20130829/N1:
+  Type: Composite
+  Elements:
+    - g/N1/rings
+    - g/N1/lowedge
+    - g/N1/highedge
+    - g/N1/poly
+    - 20130829/N1/ccdshift
+    - g/N1/color
+20130829/N1/ccdshift:
+  Type: Linear
+  Coefficients: [5.540747818016746e-05, 0.9998950632979713, 0.003554833144661168, -4.656770391502881e-05, -0.003548992300796257, 0.9999115262902504]
+WCS:
+  TEST/N1:
+    Type: WCS
+    MapName: TEST/N1/base
+    Projection:
+      Type: Gnomonic
+      Orientation:
+        RA: 100.073184432511
+        Dec: -34.04855682397644
+        PA: 0
+      Xi: 0
+      Eta: 0
+    Scale: 0.0174532925199433

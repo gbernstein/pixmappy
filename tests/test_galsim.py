@@ -70,6 +70,27 @@ def test_tpv():
         np.testing.assert_allclose(sky1.dec.rad(), sky2.dec.rad(), rtol=1.e-8)
 
 
+def test_complex():
+    """Test a complex PMC file against some reference values"""
+
+    wcs = pixmappy.GalSimWCS(os.path.join('input', 'complex_wcs.astro'), wcs_name='TEST/N1')
+
+    ref = np.genfromtxt(os.path.join('input', 'complex_wcs.results'), names=True)
+
+    for row in ref:
+        print(row)
+        pos = galsim.PositionD(row['xpix'], row['ypix'])
+        sky = wcs.toWorld(pos, color=row['color'])
+        ra = sky.ra / galsim.degrees
+        dec = sky.dec / galsim.degrees
+        np.testing.assert_allclose(ra, row['RA'], rtol=1.e-6)
+        np.testing.assert_allclose(dec, row['Dec'], rtol=1.e-6)
+
+    # This WCS requires a color term.  Raises an exception if you don't provide it.
+    np.testing.assert_raises(Exception, wcs.toWorld, pos)
+
+
 if __name__ == '__main__':
     test_basic()
     test_tpv()
+    test_complex()
