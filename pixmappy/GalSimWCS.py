@@ -1,16 +1,17 @@
 
-from __future__ import print_function
-import os
-import astropy.coordinates
-
-from .decaminfo import DECamInfo
-from .PixelMapCollection import PixelMapCollection
-
 try:
     import galsim
-except:
-    print('Unable to import galsim.  The GalSimWCS interface will not be available.')
+except ImportError:
+    class GalSimWCS(object):
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError(
+                'Unable to import galsim. The GalSimWCS interface is not available.')
 else:
+
+    from .decaminfo import DECamInfo
+    from .PixelMapCollection import PixelMapCollection
+    import os
+    import astropy.coordinates
 
     class GalSimWCS(galsim.wcs.CelestialWCS):
         """A wrapper of the PixelMapCollection class that can be used as a galsim WCS type.
