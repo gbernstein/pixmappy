@@ -57,7 +57,6 @@ else:
             if pmc is None:
                 raise TypeError("Must provide either file_name or pmc")
             self._pmc = pmc
-            self._origin = origin
             if wcs_name is not None:
                 if exp is not None or ccdnum is not None:
                     raise TypeError("Cannot provide both wcs_name and (exp,ccdnum)")
@@ -70,6 +69,16 @@ else:
                 self.ccdname = self.info.ccddict[ccdnum]
                 self._wcs_name = 'D%s/%s'%(self.exp, self.ccdname)
             self._wcs = pmc.getWCS(self._wcs_name)
+
+            if origin is None:
+                self._origin = galsim.PositionD(0,0)
+            else:
+                if isinstance(origin, galsim.PositionI):
+                    origin = galsim.PositionD(origin.x, origin.y)
+                elif not isinstance(origin, galsim.PositionD):
+                    raise TypeError("origin must be a PositionD or PositionI argument")
+                self._origin = origin
+
 
         @property
         def pmc(self): return self._pmc
@@ -99,15 +108,21 @@ else:
             cls.cache.clear()
 
         def _radec(self, x, y, c=None):
-            print('radec for x,y = ',x,',',y)
             coord = self._wcs.toSky( (x,y), c=c )
-            print('coord = ',coord)
-            return coord.ra, coord.dec
+            ra = coord.icrs.ra.rad
+            dec = coord.icrs.dec.rad
+            try:
+                len(x)
+            except:
+                # If the inputs weren't numpy arrays, return scalars
+                assert len(ra) == 1
+                assert len(dec) == 1
+                ra = ra[0]
+                dec = dec[0]
+            return ra, dec
 
         def _xy(self, ra, dec, c=None):
-            print('xy for ra,dec = ',ra,',',dec)
             xy = self._wcs.toPix( astropy.coordinates.SkyCoord(ra,dec), c=c )
-            print('xy = ',xy)
             return xy[0], xy[1]
 
         def _newOrigin(self, origin):

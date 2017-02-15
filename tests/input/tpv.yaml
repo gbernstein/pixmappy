@@ -1,0 +1,37 @@
+PixelMapCollection: This is a serialized PixelMapCollection
+testwcs:
+  Type: Composite
+  Elements:
+    - testwcs_cd
+    - testwcs_pv
+testwcs_cd:
+  Type: Linear
+  Coefficients: [-0.3067145022856191, -1.833074903884e-06, 7.34840262948e-05, -0.3172048850137146, 7.239017109944e-05, 1.944488720211e-07]
+testwcs_pv:
+  Type: Poly
+  XMin: -1
+  XMax: 1
+  YMin: -1
+  YMax: 1
+  XPoly:
+    SumOrder: true
+    OrderX: 3
+    Coefficients: [0.0004876332493733, 1.016546354589, -0.02498077749032, 0.005117265809141, -0.04446966863535, -0.134093201046, -0.0984281409096, -0.02018527362798, -0.2049143319401, -0.1576700919109]
+  YPoly:
+    SumOrder: true
+    OrderX: 3
+    Coefficients: [0.008817169586696001, 0.006797154161982, 1.053187484269, -0.008179626241234, -0.04330047111111, 0.07293553468422, -0.01027555823044, -0.1406374706713, -0.0850396522741, -0.01386138380831]
+  Tolerance: 0.0002777777777777778
+WCS:
+  testwcs:
+    Type: WCS
+    MapName: testwcs
+    Projection:
+      Type: Gnomonic
+      Orientation:
+        RA: 52.88269780126999
+        Dec: -28.44369999644
+        PA: 0
+      Xi: -2.6315726653339e-15
+      Eta: 2.397042660923597e-15
+    Scale: 0.0174532925199433
