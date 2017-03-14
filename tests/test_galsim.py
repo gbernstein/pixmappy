@@ -158,7 +158,7 @@ def test_sky():
     #ps = pstats.Stats(pr).sort_stats('cumtime')
     ps.print_stats(20)
     print('made sky in %f sec'%(t1-t0))
-    im.write('sky.fits')
+    im.write('output/sky.fits')
 
     for x,y in [ (im.bounds.xmin, im.bounds.ymin),
                  (im.bounds.xmax, im.bounds.ymin),
