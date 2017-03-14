@@ -24,6 +24,13 @@ def test_tpv():
         np.testing.assert_allclose(sky1.ra.deg, sky2[0], rtol=1.e-8)
         np.testing.assert_allclose(sky1.dec.deg, sky2[1], rtol=1.e-8)
 
+    # Now do all the coords at once
+    all_sky = wcs1.toSky(coords)
+    for sky1, coord in zip(all_sky, coords):
+        sky2 = wcs2.wcs_pix2world(coord[0], coord[1], 1, ra_dec_order=True)
+        np.testing.assert_allclose(sky1.icrs.ra.deg, sky2[0], rtol=1.e-8)
+        np.testing.assert_allclose(sky1.icrs.dec.deg, sky2[1], rtol=1.e-8)
+
 
 def test_complex():
     """Test a complex PMC file against some reference values"""

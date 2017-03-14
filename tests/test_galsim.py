@@ -75,6 +75,14 @@ def test_tpv():
         np.testing.assert_allclose(sky1.ra.rad(), sky2.ra.rad(), rtol=1.e-8)
         np.testing.assert_allclose(sky1.dec.rad(), sky2.dec.rad(), rtol=1.e-8)
 
+    # Now do all the coords at once
+    xy = np.array(coords).T
+    all_sky1 = wcs1._radec(xy[0], xy[1])
+    all_sky2 = wcs2._radec(xy[0], xy[1])
+    for sky1, sky2 in zip(all_sky1, all_sky2):
+        np.testing.assert_allclose(sky1[0], sky2[0], rtol=1.e-8)
+        np.testing.assert_allclose(sky1[1], sky2[1], rtol=1.e-8)
+
 
 def test_complex():
     """Test a complex PMC file against some reference values"""
@@ -120,8 +128,32 @@ def test_cache():
     MockGalSimWCS.clear_cache()
     assert len(MockGalSimWCS.cache) == 0
 
+def test_sky():
+    """Test using the GalSimWCS to fill an image with constant surface brightness from the sky
+    """
+    wcs = pixmappy.GalSimWCS(dir='input', file_name='test.astro', exp=375294, ccdnum=14)
+    print('wcs = ',wcs)
+
+    sky_level = 177
+    im = galsim.Image(2048, 4096)
+    print('start making sky')
+    wcs.makeSkyImage(im, sky_level)
+    print('made sky')
+    im.write('sky.fits')
+
+    for x,y in [ (im.bounds.xmin, im.bounds.ymin),
+                 (im.bounds.xmax, im.bounds.ymin),
+                 (im.bounds.xmin, im.bounds.ymax),
+                 (im.bounds.xmax, im.bounds.ymax),
+                 (im.center().x, im.center().y) ]:
+        val = im(x,y)
+        area = wcs.pixelArea(galsim.PositionD(x,y))
+        np.testing.assert_almost_equal(val/(area*sky_level), 1., 6,
+                                       "Sky image at %d,%d is wrong"%(x,y))
+
 if __name__ == '__main__':
     test_basic()
     test_tpv()
     test_complex()
     test_cache()
+    test_sky()

@@ -12,6 +12,7 @@ else:
     from .PixelMapCollection import PixelMapCollection
     import os
     import astropy.coordinates
+    import numpy as np
 
     class GalSimWCS(galsim.wcs.CelestialWCS):
         """A wrapper of the PixelMapCollection class that can be used as a galsim WCS type.
@@ -42,6 +43,7 @@ else:
 
         def __init__(self, file_name=None, dir=None, pmc=None, wcs_name=None,
                      exp=None, ccdnum=None, origin=None, cache=True):
+            self._color = None
             if file_name is not None:
                 if dir is not None:
                     file_name = os.path.join(dir,file_name)
@@ -111,7 +113,7 @@ else:
             cls.cache.clear()
 
         def _radec(self, x, y, c=None):
-            coord = self._wcs.toSky( (x,y), c=c )
+            coord = self._wcs.toSky( np.array([x,y]).T, c=c )
             ra = coord.icrs.ra.rad
             dec = coord.icrs.dec.rad
             try:
