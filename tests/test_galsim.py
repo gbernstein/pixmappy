@@ -75,13 +75,21 @@ def test_tpv():
         np.testing.assert_allclose(sky1.ra.rad(), sky2.ra.rad(), rtol=1.e-8)
         np.testing.assert_allclose(sky1.dec.rad(), sky2.dec.rad(), rtol=1.e-8)
 
+        pos1 = wcs1.toImage(sky1)
+        print('   Back to image: ',pos1)
+        np.testing.assert_allclose(pos1.x, pos.x, rtol=1.e-6, atol=1.e-8)
+        np.testing.assert_allclose(pos1.y, pos.y, rtol=1.e-6, atol=1.e-8)
+
     # Now do all the coords at once
-    xy = np.array(coords).T
-    all_sky1 = wcs1._radec(xy[0], xy[1])
-    all_sky2 = wcs2._radec(xy[0], xy[1])
-    for sky1, sky2 in zip(all_sky1, all_sky2):
-        np.testing.assert_allclose(sky1[0], sky2[0], rtol=1.e-8)
-        np.testing.assert_allclose(sky1[1], sky2[1], rtol=1.e-8)
+    xy = np.array(coords)
+    ra1, dec1 = wcs1._radec(xy[:,0], xy[:,1])
+    ra2, dec2 = wcs2._radec(xy[:,0], xy[:,1])
+    np.testing.assert_allclose(ra1, ra2, rtol=1.e-8)
+    np.testing.assert_allclose(dec1, dec2, rtol=1.e-8)
+
+    x1, y1 = wcs1._xy(ra1, dec1)
+    np.testing.assert_allclose(x1, xy[:,0], rtol=1.e-6, atol=1.e-8)
+    np.testing.assert_allclose(y1, xy[:,1], rtol=1.e-6, atol=1.e-8)
 
 
 def test_complex():

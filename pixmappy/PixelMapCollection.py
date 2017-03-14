@@ -52,7 +52,7 @@ class PixelMap(object):
         matrix at each point in xy.  If xy.shape=(N,2) then the returned array has
         shape (N,2,2) with [n,i,j] giving dx_i/dx_j at nth point.
         '''
-        xy_ = np.array(xy)
+        xy_ = np.array(xy,copy=False)
         is1d = xy_.ndim==1
         xy_ = np.atleast_2d(xy_)
         npts = xy_.shape[0]
@@ -107,7 +107,7 @@ class Identity(PixelMap):
         super(Identity,self).__init__(name)
         return
     def __call__(self,xy,c=None):
-        return np.array(xy)
+        return np.array(xy,copy=False)
 
 class Constant(PixelMap):
     '''Constant shift pixel map
@@ -124,7 +124,7 @@ class Constant(PixelMap):
         self.shift = np.array(kwargs['Parameters'],dtype=float)
         return
     def __call__(self,xy,c=None):
-        return np.array(xy) + self.shift
+        return np.array(xy,copy=False) + self.shift
 
 class Linear(PixelMap):
     '''Affine transformation pixel map
@@ -230,10 +230,10 @@ class Polynomial(PixelMap):
             else:
                 # ordering is 1., y, y^2, y^3 ... , x, xy, xy^2,
                 c = v.reshape(xOrder, yOrder)
-            self.coeffs.append(np.array(c))
+            self.coeffs.append(np.array(c,copy=False))
         return
     def __call__(self, xy, c=None):
-        xy_ = np.array(xy)
+        xy_ = np.array(xy, copy=False)
         is1d = xy_.ndim==1
         xy_ = np.atleast_2d(xy_)
         xyscaled = (xy_ - self.shift)*self.scale
@@ -306,7 +306,7 @@ class Template(PixelMap):
         # Note that np.interp does not exploit the equal spacing of arguments???
         # C++ code Lookup1d.cpp uses endpoints when beyond table bounds, as does
         # np.interp() by default.
-        xy_ = np.array(xy)
+        xy_ = np.array(xy,copy=False)
         is1d = xy_.ndim==1
         xyw = np.atleast_2d(xy_)
         if self.axis=='X':
@@ -344,7 +344,7 @@ class Piecewise(PixelMap):
           np.arange(self.vals.shape[0])
     def __call__(self, xy, c=None):
         # Note that np.interp does not exploit the equal spacing of arguments???
-        xy_ = np.array(xy)
+        xy_ = np.array(xy,copy=False)
         is1d = xy_.ndim==1
         xyw = np.atleast_2d(xy_)
         if self.axis=='X':
@@ -381,7 +381,7 @@ class ColorTerm(PixelMap):
     def __call__(self, xy, c=None):
         if c is None:
             raise ValueError('ColorTerm requires non-null c argument')
-        xy_ = np.array(xy)
+        xy_ = np.array(xy,copy=False)
         xyw = self.pmap(xy_,c)
         return xy_ + (c-self.reference) * (xyw-xy_)
 
@@ -436,6 +436,8 @@ class WCS(PixelMap):
         xyw = self.projection.toXY(coords) / self.scale
         xyp = np.zeros_like(xyw) + guess  # Broadcasts to same dimensions as input
         self.pmap.inverse(xyw, xyp, c)  # ??? tolerance???
+        if coords.ndim == 1:
+            xyp = np.squeeze(xyp)
         return xyp
     def __call__(self,xy,c=None):
         '''Map the input coordinates to the coordinates either in the original

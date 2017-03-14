@@ -122,13 +122,19 @@ else:
                 # If the inputs weren't numpy arrays, return scalars
                 assert len(ra) == 1
                 assert len(dec) == 1
-                ra = ra[0]
-                dec = dec[0]
-            return ra, dec
+                return ra[0], dec[0]
+            else:
+                return ra, dec
 
         def _xy(self, ra, dec, c=None):
-            xy = self._wcs.toPix( astropy.coordinates.SkyCoord(ra,dec), c=c )
-            return xy[0], xy[1]
+            sky_coord = astropy.coordinates.SkyCoord(ra,dec,unit='rad')
+            xy = self._wcs.toPix(sky_coord, c=c)
+            try:
+                len(ra)
+            except:
+                return xy[0], xy[1]
+            else:
+                return xy[:,0], xy[:,1]
 
         def _newOrigin(self, origin):
             ret = self.copy()

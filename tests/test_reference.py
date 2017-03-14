@@ -24,6 +24,10 @@ def test_tpv():
         np.testing.assert_allclose(sky1.ra.deg, sky2[0], rtol=1.e-8)
         np.testing.assert_allclose(sky1.dec.deg, sky2[1], rtol=1.e-8)
 
+        # And reverse
+        pix1 = wcs1.toPix(sky1)
+        np.testing.assert_allclose(pix1, coord, rtol=1.e-6, atol=1.e-8)
+
     # Now do all the coords at once
     all_sky = wcs1.toSky(coords)
     for sky1, coord in zip(all_sky, coords):
@@ -47,6 +51,9 @@ def test_complex():
         dec = coords.icrs.dec.deg
         np.testing.assert_allclose(ra, row['RA'], rtol=1.e-6)
         np.testing.assert_allclose(dec, row['Dec'], rtol=1.e-6)
+
+        pix1 = wcs.toPix(coords, c=row['color'])
+        np.testing.assert_allclose(pix1, [row['xpix'], row['ypix']], rtol=1.e-6)
 
 if __name__ == '__main__':
     test_tpv()
