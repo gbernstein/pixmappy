@@ -145,46 +145,6 @@ class Linear(PixelMap):
     def __call__(self,xy,c=None):
         return np.dot(xy,self.mT) + self.shift
 
-# These next two functions are copied from GalSim...
-# They are a replacement for the np.polynomial.polyval2d calls, which are significantly slower.
-def horner(x, coef):
-    """Evaluate univariate polynomial using Horner's method.
-
-    I.e., take A + Bx + Cx^2 + Dx^3 and evaluate it as
-    A + x(B + x(C + x(D)))
-
-    @param x     Where to evaluate polynomial.
-    @param coef  Polynomial coefficients of increasing powers of x.
-    @returns     Polynomial evaluation.  Will take on the shape of x if x is an ndarray.
-    """
-    coef = np.trim_zeros(coef, trim='b')
-    result = np.zeros_like(x)
-    if len(coef) == 0: return result
-    result += coef[-1]
-    for c in coef[-2::-1]:
-        result *= x
-        if c != 0: result += c
-    #np.testing.assert_almost_equal(result, np.polynomial.polynomial.polyval(x,coef))
-    return result
-
-def horner2d(x, y, coefs):
-    """Evaluate bivariate polynomial using nested Horner's method.
-
-    @param x      Where to evaluate polynomial (first covariate).  Must be same shape as y.
-    @param y      Where to evaluate polynomial (second covariate).  Must be same shape as x.
-    @param coefs  2D array-like of coefficients in increasing powers of x and y.
-                  The first axis corresponds to increasing the power of y, and the second to
-                  increasing the power of x.
-    @returns      Polynomial evaluation.  Will take on the shape of x and y if these are ndarrays.
-    """
-    result = horner(y, coefs[-1])
-    for coef in coefs[-2::-1]:
-        result *= x
-        result += horner(y, coef)
-    # Useful when working on this... (Numpy method is much slower, btw.)
-    #np.testing.assert_almost_equal(result, np.polynomial.polynomial.polyval2d(x,y,coefs))
-    return result
-
 class Polynomial(PixelMap):
     '''2d polynomial pixel map
     '''
@@ -243,10 +203,13 @@ class Polynomial(PixelMap):
         y -= self.shift[1]
         x *= self.scale[0]
         y *= self.scale[1]
-        xw = horner2d(x, y, self.coeffs[0])
-        yw = galsim.utilities.horner2d(x, y, self.coeffs[1])
-        #xw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[0])
-        #yw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[1])
+        try:
+            import galsim
+            xw = galsim.utilities.horner2d(x, y, self.coeffs[0])
+            yw = galsim.utilities.horner2d(x, y, self.coeffs[1])
+        except ImportError:
+            xw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[0])
+            yw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[1])
         if is1d:
             return np.array([xw,yw])
         else:
