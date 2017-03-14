@@ -139,14 +139,25 @@ def test_cache():
 def test_sky():
     """Test using the GalSimWCS to fill an image with constant surface brightness from the sky
     """
-    wcs = pixmappy.GalSimWCS(dir='input', file_name='test.astro', exp=375294, ccdnum=14)
-    print('wcs = ',wcs)
+    import time
+    import cProfile, pstats
+    pr = cProfile.Profile()
 
     sky_level = 177
     im = galsim.Image(2048, 4096)
-    print('start making sky')
+    wcs = pixmappy.GalSimWCS(dir='input', file_name='test.astro', exp=375294, ccdnum=14)
+    print('wcs = ',wcs)
+
+    pr.enable()
+    t0 = time.time()
     wcs.makeSkyImage(im, sky_level)
-    print('made sky')
+    t1 = time.time()
+    pr.disable()
+
+    ps = pstats.Stats(pr).sort_stats('time')
+    #ps = pstats.Stats(pr).sort_stats('cumtime')
+    ps.print_stats(20)
+    print('made sky in %f sec'%(t1-t0))
     im.write('sky.fits')
 
     for x,y in [ (im.bounds.xmin, im.bounds.ymin),
@@ -158,6 +169,16 @@ def test_sky():
         area = wcs.pixelArea(galsim.PositionD(x,y))
         np.testing.assert_almost_equal(val/(area*sky_level), 1., 6,
                                        "Sky image at %d,%d is wrong"%(x,y))
+
+    print('min = ',im.array.min())
+    print('max = ',im.array.max())
+    print('mean = ',im.array.mean())
+    print('nominal level = ',sky_level * 0.265**2)
+    # For this particular exp/ccdnum, and this sky value, these are the min/max/mean values
+
+    np.testing.assert_almost_equal(im.array.min(), 11.972244, 5)
+    np.testing.assert_almost_equal(im.array.max(), 12.506965, 5)
+    np.testing.assert_almost_equal(im.array.mean(), 12.243378, 5)
 
 if __name__ == '__main__':
     test_basic()
