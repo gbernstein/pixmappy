@@ -245,7 +245,8 @@ class Template(PixelMap):
                         break
             if path is None:
                 raise IOError('Can not find template library file ' + fname)
-            self.libraries[fname] = yaml.load(open(path),Loader=Loader)
+            with open(path) as f:
+                self.libraries[fname] = yaml.load(f,Loader=Loader)
 
         # Now find the desired template
         if kwargs['LowTable'] not in self.libraries[fname]:
@@ -416,7 +417,8 @@ class PixelMapCollection(object):
     def __init__(self, filename):
         '''Create PixelMapCollection from the named YAML file
         '''
-        self.root = yaml.load(open(filename),Loader=Loader)
+        with open(filename) as f:
+            self.root = yaml.load(f,Loader=Loader)
         # Extract the WCS specifications into their own dict
         if 'WCS' in self.root:
             self.wcs = self.root.pop('WCS')
