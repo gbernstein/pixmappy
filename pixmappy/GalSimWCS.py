@@ -116,15 +116,7 @@ else:
             coord = self._wcs.toSky( np.array([x,y]).T, c=c )
             ra = coord.icrs.ra.rad
             dec = coord.icrs.dec.rad
-            try:
-                len(x)
-            except:
-                # If the inputs weren't numpy arrays, return scalars
-                assert len(ra) == 1
-                assert len(dec) == 1
-                return ra[0], dec[0]
-            else:
-                return ra, dec
+            return ra, dec
 
         def _xy(self, ra, dec, c=None):
             sky_coord = astropy.coordinates.SkyCoord(ra,dec,unit='rad')

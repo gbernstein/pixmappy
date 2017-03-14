@@ -579,30 +579,85 @@ class Gnomonic(object):
         pole (in ICRS degrees) and rotation angle of the axes relative
         to ICRS north.
         '''
-        pole = co.SkyCoord(ra, dec, unit='deg',frame='icrs')
-        self.frame = pole.skyoffset_frame(rotation=co.Angle(rotation,unit='deg'))
-        return
+        self.pole_ra = ra
+        self.pole_dec = dec
+        self.rotation = rotation
+
+    def _set_fram(self):
+        pole = co.SkyCoord(self.ra, self.dec, unit='deg',frame='icrs')
+        self.frame = pole.skyoffset_frame(rotation=co.Angle(self.rotation,unit='deg'))
+
     def toSky(self,xy):
         '''
         Convert xy coordinates in the gnomonic project (in degrees) into SkyCoords.
         '''
-        # Get the y and z components of unit-sphere coords, x on pole axis
-        yz = np.atleast_2d(xy) * np.pi / 180.
-        yz /= np.sqrt( 1 + np.sum(yz*yz,axis=1))[:,np.newaxis]
-        dec = np.arcsin(yz[:,1])
-        ra = np.arcsin(yz[:,0] / np.cos(dec))
-        return co.SkyCoord(ra, dec,unit='rad', frame=self.frame)
+        try:
+            x, y = xy[:,0], xy[:,1]
+        except (TypeError, IndexError):
+            x, y = xy
+        try:
+            import galsim
+            pole = galsim.CelestialCoord(self.pole_ra * galsim.degrees,
+                                         self.pole_dec * galsim.degrees)
+            x *= -3600.  # GalSim wants these in arcsec, not degrees
+            y *= 3600.   # Also, a - sign for x, since astropy uses +ra as +x direction.
+            # apply rotation
+            if self.rotation != 0.:
+                # TODO: I'm not sure if I have the sense of the rotation correct here.
+                #       The "complex wcs" test has PA = 0, so I wasn't able to test it.
+                #       There may be a sign error on the s terms.
+                s, c = (self.rotation * galsim.degrees).sincos()
+                x, y = x*c - y*s, x*s + y*c
+            # apply projection
+            ra, dec = pole.deproject_rad(x, y, projection='gnomonic')
+            return co.SkyCoord(ra, dec, unit='rad')
+
+        except ImportError:
+            if self.frame is None: self._set_fram()
+
+            # Get the y and z components of unit-sphere coords, x on pole axis
+            y, z = x, y
+            y *= np.pi / 180.
+            z *= np.pi / 180.
+            temp = np.sqrt(1 + y*y + z*z)
+            y /= temp
+            z /= temp
+            dec = np.arcsin(z)
+            ra = np.arcsin(y / np.cos(dec))
+            return co.SkyCoord(ra, dec, unit='rad', frame=self.frame)
+
     def toXY(self, coords):
         '''
         Convert SkyCoord array into xy values in the gnomonic projection, in degrees
         '''
-        s = coords.transform_to(self.frame)
-        # Get 3 components on unit sphere
-        x = np.cos(s.lat.radian)*np.cos(s.lon.radian)
-        y = np.cos(s.lat.radian)*np.sin(s.lon.radian)
-        z = np.sin(s.lat.radian)
-        out = np.vstack((y/x, z/x)).T * 180. / np.pi
-        if coords.isscalar:
-            return np.squeeze(out)
-        else:
-            return out
+        try:
+            import galsim
+            pole = galsim.CelestialCoord(self.pole_ra * galsim.degrees,
+                                           self.pole_dec * galsim.degrees)
+            ra = coords.icrs.ra.radian
+            dec = coords.icrs.dec.radian
+            # apply projection
+            x, y = pole.project_rad(ra, dec, projection='gnomonic')
+            x /= -3600.
+            y /= 3600.
+            # apply rotation
+            if self.rotation != 0.:
+                s, c = (self.rotation * galsim.degrees).sincos()
+                x, y = x*c + y*s, -x*s + y*c
+            if coords.isscalar:
+                return np.array([x,y])
+            else:
+                return np.array([x,y]).T
+
+        except ImportError:
+            if self.frame is None: self._set_fram()
+            s = coords.transform_to(self.frame)
+            # Get 3 components on unit sphere
+            x = np.cos(s.lat.radian)*np.cos(s.lon.radian)
+            y = np.cos(s.lat.radian)*np.sin(s.lon.radian)
+            z = np.sin(s.lat.radian)
+            out = np.vstack((y/x, z/x)).T * 180. / np.pi
+            if coords.isscalar:
+                return np.squeeze(out)
+            else:
+                return out
