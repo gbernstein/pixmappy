@@ -5,13 +5,17 @@ import pixmappy
 import numpy as np
 import astropy
 import os
+import warnings
 
 def test_tpv():
     """Test that reading a tpv file is equivalent to a regular TPV FITS wcs"""
 
     pmc = pixmappy.PixelMapCollection(os.path.join('input', 'tpv.yaml'))
     wcs1 = pmc.getWCS('testwcs')
-    wcs2 = astropy.wcs.WCS(os.path.join('input','tpv.fits'))
+    with warnings.catch_warnings():
+        # Ignore warnings about RADECSYS -> RADESYSa.
+        warnings.simplefilter("ignore")
+        wcs2 = astropy.wcs.WCS(os.path.join('input','tpv.fits'))
 
 
     coords = [ (1322.1, 857.2), (1,1), (0,0), (943.234, 234.943), (2048, 2048) ]
