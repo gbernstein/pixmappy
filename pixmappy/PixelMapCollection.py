@@ -85,7 +85,7 @@ class PixelMap(object):
         xyp2d = np.atleast_2d(xyp)  # Note it's a view so results are in-place
         npts = xyw2d.shape[0]
         if xyp2d.shape[0] != npts:
-            raise Exception('Mismatch of xyw, xyp point counts in PixelMap.inverse')
+            raise ValueError('Mismatch of xyw, xyp point counts in PixelMap.inverse')
 
         for i in range(npts):
             result = root(resid(self.__call__,xyw2d[i],c), xyp2d[i], tol=tol).x
@@ -118,9 +118,9 @@ class Constant(PixelMap):
     def __init__(self, name, **kwargs):
         super(Constant,self).__init__(name)
         if 'Parameters' not in kwargs:
-            raise Exception('Missing Parameters in Constant PixelMap spec')
+            raise TypeError('Missing Parameters in Constant PixelMap spec')
         if len(kwargs['Parameters']) !=2:
-            raise Exception('Wrong # of parameters in Constant PixelMap spec')
+            raise TypeError('Wrong # of parameters in Constant PixelMap spec')
         self.shift = np.array(kwargs['Parameters'],dtype=float)
         return
     def __call__(self,xy,c=None):
@@ -135,9 +135,9 @@ class Linear(PixelMap):
     def __init__(self, name, **kwargs):
         super(Linear,self).__init__(name)
         if 'Coefficients' not in kwargs:
-            raise Exception('Missing Coefficients in Linear PixelMap spec')
+            raise TypeError('Missing Coefficients in Linear PixelMap spec')
         if len(kwargs['Coefficients']) !=6:
-            raise Exception('Wrong # of coefficients in Linear PixelMap spec')
+            raise TypeError('Wrong # of coefficients in Linear PixelMap spec')
         p = np.array(kwargs['Coefficients'],dtype=float).reshape((2,3))
         self.shift = p[:,0]
         self.mT = p[:,1:].T  # Make transpose of the magnification matrix
@@ -221,7 +221,7 @@ class Template(PixelMap):
     def __init__(self,name, **kwargs):
         super(Template,self).__init__(name)
         if kwargs['HasSplit']:
-            raise Exception('Template pixel map not coded for split templates')
+            raise ValueError('Template pixel map not coded for split templates')
         fname = kwargs['Filename']
         if fname not in self.libraries:
             # Read in a new library file
@@ -244,12 +244,12 @@ class Template(PixelMap):
                         path = os.path.join(p,fname)
                         break
             if path is None:
-                raise Exception('Can not find template library file ' + fname)
+                raise IOError('Can not find template library file ' + fname)
             self.libraries[fname] = yaml.load(open(path),Loader=Loader)
 
         # Now find the desired template
         if kwargs['LowTable'] not in self.libraries[fname]:
-            raise Exception('Did not find map ' + kwargs['LowTable'] + ' in file ' + fname)
+            raise RuntimeError('Did not find map ' + kwargs['LowTable'] + ' in file ' + fname)
         self.scale = float(kwargs['Parameter'])
         tab = self.libraries[fname][kwargs['LowTable']]
         
@@ -278,7 +278,7 @@ class Template(PixelMap):
             dr = np.interp(rad, self.args, self.vals) * self.scale
             xyw = xyc*(dr/rad)[:,np.newaxis] + xy
         else:
-            raise Exception('Unknown Template axis type ' + self.axis)
+            raise ValueError('Unknown Template axis type ' + self.axis)
         if is1d:
             return np.squeeze(xyw)
         else:
@@ -316,7 +316,7 @@ class Piecewise(PixelMap):
             dr = np.interp(rad, self.args, self.vals)
             xyw = xyc*(dr/rad)[:,np.newaxis] + xy
         else:
-            raise Exception('Unknown Piecewise axis type ' + self.axis)
+            raise ValueError('Unknown Piecewise axis type ' + self.axis)
         if is1d:
             return np.squeeze(xyw)
         else:
@@ -334,12 +334,12 @@ class ColorTerm(PixelMap):
         '''
         super(ColorTerm,self).__init__(name)
         if pmap is None:
-            raise Exception('No modified map specified for ColorTerm')
+            raise ValueError('No modified map specified for ColorTerm')
         self.pmap = pmap
         self.reference = float(kwargs['Reference'])
     def __call__(self, xy, c=None):
         if c is None:
-            raise Exception('ColorTerm requires non-null c argument')
+            raise ValueError('ColorTerm requires non-null c argument')
         xy_ = np.array(xy)
         xyw = self.pmap(xy_,c)
         return xy_ + (c-self.reference) * (xyw-xy_)
@@ -440,7 +440,7 @@ class PixelMapCollection(object):
         from the specs in the kwargs dictionary
         '''
         if kwargs['Type'] not in self.atoms:
-            raise Exception('Unknown PixelMap atomic type ' + kwargs['Type'])
+            raise ValueError('Unknown PixelMap atomic type ' + kwargs['Type'])
         return self.atoms[kwargs['Type']](name,**kwargs)
     
     def getMap(self,name):
@@ -449,7 +449,7 @@ class PixelMapCollection(object):
         if name in self.realizedMap:
             return self.realizedMap[name]
         if name not in self.root:
-            raise Exception('No PixelMap with name ' + name)
+            raise ValueError('No PixelMap with name ' + name)
 
         specs = self.root[name]  # The dict with specifications of this map
         if specs['Type']==ColorTerm.type():
@@ -473,7 +473,7 @@ class PixelMapCollection(object):
         if name in self.realizedWCS:
             return self.realizedWCS[name]
         if name not in self.wcs:
-            raise Exception('No WCS with name ' + name)
+            raise ValueError('No WCS with name ' + name)
 
         specs = self.wcs[name]  # The dict with specifications of this map
         # First get the PixelMap that it modifies
@@ -492,7 +492,7 @@ class PixelMapCollection(object):
             pa = float(pspecs['Orientation']['PA'])
             projection = Gnomonic(ra,dec,rotation=pa)
         else:
-            raise Exception('Do not know how to parse projection of type ',pspecs['Type'])
+            raise ValueError('Do not know how to parse projection of type ',pspecs['Type'])
         # Make the WCS 
         w = WCS(name, pmap=pmap, projection=projection, scale=scale)
         # Cache it
