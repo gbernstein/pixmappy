@@ -1,3 +1,11 @@
+*.pyc
+.*.swp
+.DS_Store
+*junk*
+debug.out
+tmp*
+*~
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -5,6 +13,7 @@ __pycache__/
 
 # C extensions
 *.so
+*.os
 
 # Distribution / packaging
 .Python
