@@ -233,19 +233,24 @@ class Polynomial(PixelMap):
             self.coeffs.append(np.array(c,copy=False))
         return
     def __call__(self, xy, c=None):
-        xy_ = np.array(xy, copy=False)
-        is1d = xy_.ndim==1
-        xy_ = np.atleast_2d(xy_)
-        xyscaled = (xy_ - self.shift)*self.scale
-        xyw = np.zeros_like(xy_)
-        xyw[:,0] = horner2d(xyscaled[:,0], xyscaled[:,1], self.coeffs[0])
-        xyw[:,1] = horner2d(xyscaled[:,0], xyscaled[:,1], self.coeffs[1])
-        #xyw[:,0] = np.polynomial.polynomial.polyval2d(xyscaled[:,0], xyscaled[:,1], self.coeffs[0])
-        #xyw[:,1] = np.polynomial.polynomial.polyval2d(xyscaled[:,0], xyscaled[:,1], self.coeffs[1])
+        try:
+            x, y = xy[:,0], xy[:,1]
+            is1d = False
+        except (TypeError, IndexError):
+            x, y = xy
+            is1d = True
+        x -= self.shift[0]
+        y -= self.shift[1]
+        x *= self.scale[0]
+        y *= self.scale[1]
+        xw = horner2d(x, y, self.coeffs[0])
+        yw = galsim.utilities.horner2d(x, y, self.coeffs[1])
+        #xw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[0])
+        #yw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[1])
         if is1d:
-            return np.squeeze(xyw)
+            return np.array([xw,yw])
         else:
-            return xyw
+            return np.array([xw,yw]).T
 
 class Template(PixelMap):
     '''Mapping defined by scaling of a 1-dimensional lookup table
@@ -303,27 +308,34 @@ class Template(PixelMap):
         return
 
     def __call__(self, xy, c=None):
+        try:
+            x, y = xy[:,0], xy[:,1]
+            is1d = False
+        except (TypeError, IndexError):
+            x, y = xy
+            is1d = True
         # Note that np.interp does not exploit the equal spacing of arguments???
         # C++ code Lookup1d.cpp uses endpoints when beyond table bounds, as does
         # np.interp() by default.
-        xy_ = np.array(xy,copy=False)
-        is1d = xy_.ndim==1
-        xyw = np.atleast_2d(xy_)
         if self.axis=='X':
-            xyw[:,0] += np.interp(xyw[:,0], self.args, self.vals) * self.scale
+            x += np.interp(x, self.args, self.vals) * self.scale
         elif self.axis=='Y':
-            xyw[:,1] += np.interp(xyw[:,1], self.args, self.vals) * self.scale
+            y += np.interp(y, self.args, self.vals) * self.scale
         elif self.axis=='R':
-            xyc = xyw - self.center
-            rad = np.hypot(xyc[:,0],xyc[:,1])
-            dr = np.interp(rad, self.args, self.vals) * self.scale
-            xyw = xyc*(dr/rad)[:,np.newaxis] + xy
+            xc = x - self.center[0]
+            yc = y - self.center[1]
+            rad = np.hypot(xc,yc)
+            dr = np.interp(rad, self.args, self.vals)
+            dr *= self.scale
+            dr /= rad
+            x += xc * dr
+            y += yc * dr
         else:
             raise ValueError('Unknown Template axis type ' + self.axis)
         if is1d:
-            return np.squeeze(xyw)
+            return np.array([x,y])
         else:
-            return xyw
+            return np.array([x,y]).T
 
 class Piecewise(PixelMap):
     '''Mapping defined by piecewise-linear function
@@ -343,27 +355,32 @@ class Piecewise(PixelMap):
         self.args = float(kwargs['ArgStart']) + float(kwargs['ArgStep']) * \
           np.arange(self.vals.shape[0])
     def __call__(self, xy, c=None):
+        try:
+            x, y = xy[:,0], xy[:,1]
+            is1d = False
+        except (TypeError, IndexError):
+            x, y = xy
+            is1d = True
         # Note that np.interp does not exploit the equal spacing of arguments???
-        xy_ = np.array(xy,copy=False)
-        is1d = xy_.ndim==1
-        xyw = np.atleast_2d(xy_)
         if self.axis=='X':
-            xyw[:,0] += np.interp(xyw[:,0], self.args, self.vals)
+            x += np.interp(x, self.args, self.vals)
         elif self.axis=='Y':
-            xyw[:,1] += np.interp(xyw[:,1], self.args, self.vals)
+            y += np.interp(y, self.args, self.vals)
         elif self.axis=='R':
-            xyc = xyw - self.center
-            rad = np.hypot(xyc[:,0],xyc[:,1])
+            xc = x - self.center[0]
+            yc = y - self.center[1]
+            rad = np.hypot(xc,yc)
             dr = np.interp(rad, self.args, self.vals)
-            xyw = xyc*(dr/rad)[:,np.newaxis] + xy
+            dr /= rad
+            x += xc * dr
+            y += yc * dr
         else:
             raise ValueError('Unknown Piecewise axis type ' + self.axis)
         if is1d:
-            return np.squeeze(xyw)
+            return np.array([x,y])
         else:
-            return xyw
-        
-    
+            return np.array([x,y]).T
+
 class ColorTerm(PixelMap):
     '''Pixel map that is color times deviation of some other PixelMap
     '''
@@ -381,9 +398,12 @@ class ColorTerm(PixelMap):
     def __call__(self, xy, c=None):
         if c is None:
             raise ValueError('ColorTerm requires non-null c argument')
-        xy_ = np.array(xy,copy=False)
-        xyw = self.pmap(xy_,c)
-        return xy_ + (c-self.reference) * (xyw-xy_)
+        xyw = self.pmap(xy,c)
+        # return xy + (c-self.reference) * (xyw-xy)
+        xyw -= xy
+        xyw *= (c-self.reference)
+        xyw += xy
+        return xyw
 
 class Composite(PixelMap):
     '''Pixel map defined as composition of other PixelMaps
@@ -433,7 +453,8 @@ class WCS(PixelMap):
         guess is a starting guess for solver, which can be either a single
         coordinate pair or an array matching coords length.
         '''
-        xyw = self.projection.toXY(coords) / self.scale
+        xyw = self.projection.toXY(coords)
+        xyw /= self.scale
         xyp = np.zeros_like(xyw) + guess  # Broadcasts to same dimensions as input
         self.pmap.inverse(xyw, xyp, c)  # ??? tolerance???
         if coords.ndim == 1:
