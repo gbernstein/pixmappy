@@ -418,7 +418,7 @@ class WCS(PixelMap):
     def toSky(self, x, y, c=None):
         ''' Return sky coordinates corresponding to array
         '''
-        # This is the front end user interface.  Let's not modify the user's nput x,y values.
+        # This is the front end user interface.  Let's not modify the user's input x,y values.
         # Everything else is allowed to modify the inputs to make the outputs more efficiently.
         x1 = np.array(x, dtype=float)
         y1 = np.array(y, dtype=float)
@@ -588,9 +588,10 @@ class Gnomonic(object):
         self.pole_ra = ra
         self.pole_dec = dec
         self.rotation = rotation
+        self.frame = None
 
-    def _set_fram(self):
-        pole = co.SkyCoord(self.ra, self.dec, unit='deg',frame='icrs')
+    def _set_frame(self):
+        pole = co.SkyCoord(self.pole_ra, self.pole_dec, unit='deg',frame='icrs')
         self.frame = pole.skyoffset_frame(rotation=co.Angle(self.rotation,unit='deg'))
 
     def toSky(self, x, y):
@@ -612,13 +613,12 @@ class Gnomonic(object):
                 x, y = x*c - y*s, x*s + y*c
             # apply projection
             ra, dec = pole.deproject_rad(x, y, projection='gnomonic')
-            degrees = 180. / np.pi
-            ra *= degrees
-            dec *= degrees
+            ra *= galsim.radians / galsim.degrees
+            dec *= galsim.radians / galsim.degrees
             return ra, dec
 
         except ImportError:
-            if self.frame is None: self._set_fram()
+            if self.frame is None: self._set_frame()
 
             # Get the y and z components of unit-sphere coords, x on pole axis
             y, z = x, y
@@ -640,9 +640,8 @@ class Gnomonic(object):
             import galsim
             pole = galsim.CelestialCoord(self.pole_ra * galsim.degrees,
                                          self.pole_dec * galsim.degrees)
-            radians = np.pi / 180.
-            ra *= radians
-            dec *= radians
+            ra *= galsim.degrees / galsim.radians
+            dec *= galsim.degrees / galsim.radians
             # apply projection
             x, y = pole.project_rad(ra, dec, projection='gnomonic')
             x /= -3600.
@@ -654,8 +653,10 @@ class Gnomonic(object):
             return x, y
 
         except ImportError:
-            if self.frame is None: self._set_fram()
-            s = coords.transform_to(self.frame)
+            if self.frame is None: self._set_frame()
+
+            coord = co.SkyCoord(ra, dec, unit='deg')
+            s = coord.transform_to(self.frame)
             # Get 3 components on unit sphere
             x = np.cos(s.lat.radian)*np.cos(s.lon.radian)
             y = np.cos(s.lat.radian)*np.sin(s.lon.radian)
