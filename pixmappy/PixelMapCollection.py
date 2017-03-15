@@ -9,8 +9,8 @@ Capabilities include:
 
 All transformations can be done on arrays of coordinates as well as scalars.
 
-Pixel or world positions are to be numpy arrays of shape (2) or (N,2).  Sky
-positions are astropy.coordinates.SkyCoord objects/arrays.
+Pixel or world positions are to be numpy arrays of shape (2) or (N,2).
+Sky positions are RA, Dec in degrees.
 
 Template PixelMaps access their templates from YAML-formatted files of their own.
 The CAL_PATH environment variable can be used to give a list of paths to search
@@ -397,12 +397,12 @@ class Composite(PixelMap):
 
 class WCS(PixelMap):
     '''Pixel map that is augmented by a projection from the world coordinates
-    to definitive sky position, and toSky() will return astropy SkyCoord vectors
+    to definitive sky position, and toSky() will return RA, Dec arrays
     corresponding to the inputs.
     Also can alternatively supply a second projection such that __call__ method 
     returns the coordinates in the second projection's system.
     A projection is anything that has toSky() and toPix() methods going to/from
-    SkyCoord arrays given numpy array.
+    RA, Dec.
     Scale factor is multiplied into world coordinates to turn them into degrees.
     '''
     def __init__(self, name, pmap, projection, scale=1.):
@@ -427,12 +427,12 @@ class WCS(PixelMap):
         yw *= self.scale
         return self.projection.toSky(xw, yw)
 
-    def toPix(self, coords, c=None, guess=np.array([0.,0.])):
-        ''' Return pixel coordinates corresponding to input SkyCoords.
+    def toPix(self, ra, dec, c=None, guess=np.array([0.,0.])):
+        ''' Return pixel coordinates corresponding to input RA, Dec.
         guess is a starting guess for solver, which can be either a single
         coordinate pair or an array matching coords length.
         '''
-        xw, yw = self.projection.toXY(coords)
+        xw, yw = self.projection.toXY(ra, dec)
         xw /= self.scale
         yw /= self.scale
         xp = np.empty_like(xw)
@@ -564,14 +564,14 @@ class ICRS(object):
         pass
 
     def toSky(self, x, y):
-        return co.SkyCoord(x, y, unit='deg')
+        return x, y
 
-    def toXY(self, coords):
-        return coords.ra.degree, coords.dec.degree
+    def toXY(self, ra, dec):
+        return ra, dec
     
 class Gnomonic(object):
     ''' Class representing a gnomonic projection about some point on
-    the sky.  Can be used to go between xi,eta coordinates and SkyCoords.
+    the sky.  Can be used to go between xi,eta coordinates and ra,dec.
     All xy units are assumed to be in degrees as are the ra, dec, and PA of
     the projection pole.
     '''
@@ -595,7 +595,7 @@ class Gnomonic(object):
 
     def toSky(self, x, y):
         '''
-        Convert xy coordinates in the gnomonic project (in degrees) into SkyCoords.
+        Convert xy coordinates in the gnomonic project (in degrees) into ra, dec.
         '''
         try:
             import galsim
@@ -612,7 +612,10 @@ class Gnomonic(object):
                 x, y = x*c - y*s, x*s + y*c
             # apply projection
             ra, dec = pole.deproject_rad(x, y, projection='gnomonic')
-            return co.SkyCoord(ra, dec, unit='rad')
+            degrees = 180. / np.pi
+            ra *= degrees
+            dec *= degrees
+            return ra, dec
 
         except ImportError:
             if self.frame is None: self._set_fram()
@@ -626,18 +629,20 @@ class Gnomonic(object):
             z /= temp
             dec = np.arcsin(z)
             ra = np.arcsin(y / np.cos(dec))
-            return co.SkyCoord(ra, dec, unit='rad', frame=self.frame)
+            coord = co.SkyCoord(ra, dec, unit='rad', frame=self.frame)
+            return coord.icrs.ra.deg, coord.icrs.dec.deg
 
-    def toXY(self, coords):
+    def toXY(self, ra, dec):
         '''
-        Convert SkyCoord array into xy values in the gnomonic projection, in degrees
+        Convert RA, Dec into xy values in the gnomonic projection, in degrees
         '''
         try:
             import galsim
             pole = galsim.CelestialCoord(self.pole_ra * galsim.degrees,
-                                           self.pole_dec * galsim.degrees)
-            ra = coords.icrs.ra.radian
-            dec = coords.icrs.dec.radian
+                                         self.pole_dec * galsim.degrees)
+            radians = np.pi / 180.
+            ra *= radians
+            dec *= radians
             # apply projection
             x, y = pole.project_rad(ra, dec, projection='gnomonic')
             x /= -3600.
