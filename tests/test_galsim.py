@@ -82,7 +82,7 @@ def test_tpv():
 
         jac1 = wcs1.jacobian(pos).getMatrix()
         jac2 = wcs2.jacobian(pos).getMatrix()
-        jac3 = wcs1._wcs.jacobian(coord, step=0.0001) * 3600.  # degrees -> arcsec
+        jac3 = wcs1._wcs.jacobian(coord[0], coord[1], step=0.0001) * 3600.  # degrees -> arcsec
         jac3[0,:] *= -1  # Different definition of +x
         np.testing.assert_allclose(jac1, jac2, rtol=1.e-8, atol=1.e-8)
         # This one isn't particularly close, because Gary defined his Jacobian on the tangent plane
@@ -125,7 +125,7 @@ def test_complex():
         np.testing.assert_allclose(pos1.y, pos.y, rtol=1.e-6, atol=1.e-8)
 
         jac1 = wcs.jacobian(pos, color=c).getMatrix()
-        jac2 = wcs._wcs.jacobian([x,y], step=0.0001, c=c) * 3600.  # degrees -> arcsec
+        jac2 = wcs._wcs.jacobian(x, y, step=0.0001, c=c) * 3600.  # degrees -> arcsec
         jac2[0,:] *= -1  # Different definition of +x
         np.testing.assert_allclose(jac1, jac2, atol=1.e-2)
 

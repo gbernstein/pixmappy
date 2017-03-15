@@ -113,20 +113,15 @@ else:
             cls.cache.clear()
 
         def _radec(self, x, y, c=None):
-            coord = self._wcs.toSky( np.array([x,y]).T, c=c )
+            coord = self._wcs.toSky(x, y, c=c )
             ra = coord.icrs.ra.rad
             dec = coord.icrs.dec.rad
             return ra, dec
 
         def _xy(self, ra, dec, c=None):
             sky_coord = astropy.coordinates.SkyCoord(ra,dec,unit='rad')
-            xy = self._wcs.toPix(sky_coord, c=c)
-            try:
-                len(ra)
-            except:
-                return xy[0], xy[1]
-            else:
-                return xy[:,0], xy[:,1]
+            x, y = self._wcs.toPix(sky_coord, c=c)
+            return x, y
 
         def _newOrigin(self, origin):
             ret = self.copy()

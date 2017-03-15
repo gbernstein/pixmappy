@@ -46,51 +46,53 @@ class PixelMap(object):
     '''
     def __init__(self, name):
         self.name = name
-        return
-    def jacobian(self, xy, c=None, step=1.):
+
+    def jacobian(self, x, y, c=None, step=1.):
         '''Use finite differences with indicated step size to get Jacobian derivative
-        matrix at each point in xy.  If xy.shape=(N,2) then the returned array has
-        shape (N,2,2) with [n,i,j] giving dx_i/dx_j at nth point.
+        matrix at each point x, y.  If x, y are arrays then the returned array has
+        shape (2,2,N) with [i,j,n] giving dx_i/dx_j at nth point.
         '''
-        xy_ = np.array(xy,copy=False)
-        is1d = xy_.ndim==1
-        xy_ = np.atleast_2d(xy_)
-        npts = xy_.shape[0]
-        dx = (self(xy_+np.array([step,0.]),c) - self(xy_-np.array([step,0.]),c)) / (2*step)
-        dy = (self(xy_+np.array([0.,step]),c) - self(xy_-np.array([0.,step]),c)) / (2*step)
-        out = np.zeros((npts,2,2),dtype=float)
-        out[:,:,0] = dx
-        out[:,:,1] = dy
-        if is1d:
-            return np.squeeze(out)
+        dx = np.array(self(x+step, y, c))
+        dx -= self(x-step, y, c)
+        dy = np.array(self(x, y+step, c))
+        dy -= self(x, y-step, c)
+        dx /= 2.*step
+        dy /= 2.*step
+        out = np.array([dx, dy]).T
         return out
-    def inverse(self, xyw, xyp, c=None, tol=0.0001):
+
+    def inverse(self, xw, yw, xp, yp, c=None, tol=0.0001):
         '''
-        Fill the array xyp with the solutions to PixelMap(xyp)=xyw.  The input values
-        of xyp are the initial guess.  Tolerance can be altered from default, which
+        Fill the arrays xp, yp with the solutions to PixelMap(xp, yp)=xw, yw.  The input values
+        of xp, yp are the initial guess.  Tolerance can be altered from default, which
         is given in the pixel space ???
         '''
         # Need to call the solver row by row, will be slow.
         class resid(object):
             ''' Callable giving deviation of output from target
             '''
-            def __init__(self,pmap,target,c=None):
-                self.target = target
+            def __init__(self, pmap, targetx, targety, c=None):
+                self.target = np.array([targetx, targety])
                 self.pmap = pmap
                 self.c = c
-                return
-            def __call__(self,xyp):
-                return self.pmap(xyp,self.c) - self.target
-        xyw2d = np.atleast_2d(xyw)
-        xyp2d = np.atleast_2d(xyp)  # Note it's a view so results are in-place
-        npts = xyw2d.shape[0]
-        if xyp2d.shape[0] != npts:
-            raise ValueError('Mismatch of xyw, xyp point counts in PixelMap.inverse')
 
-        for i in range(npts):
-            result = root(resid(self.__call__,xyw2d[i],c), xyp2d[i], tol=tol).x
-            xyp2d[i] = result
-        return
+            def __call__(self, xyp):
+                xp, yp = xyp
+                return np.array(self.pmap(xp, yp, self.c)) - self.target
+
+        try:
+            npts = len(xw)
+        except TypeError:
+            xyp = np.array([xp, yp])
+            xp, yp = root(resid(self.__call__, xw, yw, c), xyp, tol=tol).x
+            return xp, yp
+        else:
+            if len(yp) != npts or len(yp) != npts or len(yw) != npts:
+                raise ValueError('Mismatch of xw, yw, xp, yp point counts in PixelMap.inverse')
+
+            for i in range(npts):
+                xp[i], yp[i] = self.inverse(xw[i], yw[i], xp[i], yp[i], c, tol)
+            return xp, yp
     
 '''
 Following are various derived classes of PixelMaps.  They each have a class attribute
@@ -103,11 +105,12 @@ class Identity(PixelMap):
     @staticmethod
     def type():
         return 'Identity'
-    def __init__(self,name, **kwargs):
+
+    def __init__(self, name, **kwargs):
         super(Identity,self).__init__(name)
-        return
-    def __call__(self,xy,c=None):
-        return np.array(xy,copy=False)
+
+    def __call__(self, x, y, c=None):
+        return x, y
 
 class Constant(PixelMap):
     '''Constant shift pixel map
@@ -115,6 +118,7 @@ class Constant(PixelMap):
     @staticmethod
     def type():
         return 'Constant'
+
     def __init__(self, name, **kwargs):
         super(Constant,self).__init__(name)
         if 'Parameters' not in kwargs:
@@ -122,9 +126,11 @@ class Constant(PixelMap):
         if len(kwargs['Parameters']) !=2:
             raise TypeError('Wrong # of parameters in Constant PixelMap spec')
         self.shift = np.array(kwargs['Parameters'],dtype=float)
-        return
-    def __call__(self,xy,c=None):
-        return np.array(xy,copy=False) + self.shift
+
+    def __call__(self, x, y, c=None):
+        x += self.shift[0]
+        y += self.shift[1]
+        return x, y
 
 class Linear(PixelMap):
     '''Affine transformation pixel map
@@ -132,6 +138,7 @@ class Linear(PixelMap):
     @staticmethod
     def type():
         return 'Linear'
+
     def __init__(self, name, **kwargs):
         super(Linear,self).__init__(name)
         if 'Coefficients' not in kwargs:
@@ -140,10 +147,21 @@ class Linear(PixelMap):
             raise TypeError('Wrong # of coefficients in Linear PixelMap spec')
         p = np.array(kwargs['Coefficients'],dtype=float).reshape((2,3))
         self.shift = p[:,0]
-        self.mT = p[:,1:].T  # Make transpose of the magnification matrix
-        return
-    def __call__(self,xy,c=None):
-        return np.dot(xy,self.mT) + self.shift
+        self.m = p[:,1:]
+
+    def __call__(self, x, y, c=None):
+        # Note: with only a 2x2 matrix, it is faster to do by hand rather than using np.dot
+        xw = self.m[0,0] * x
+        yw = self.m[1,1] * y
+        #xw += self.m[0,1] * y
+        y *= self.m[0,1]
+        xw += y
+        #yw += self.m[1,0] * x
+        x *= self.m[1,0]
+        yw += x
+        xw += self.shift[0]
+        yw += self.shift[1]
+        return xw, yw
 
 class Polynomial(PixelMap):
     '''2d polynomial pixel map
@@ -151,7 +169,8 @@ class Polynomial(PixelMap):
     @staticmethod
     def type():
         return 'Poly'
-    def __init__(self,name,**kwargs):
+
+    def __init__(self, name, **kwargs):
         super(Polynomial,self).__init__(name)
         # Read the scaling bounds that will map interval into [-1,+1]
         xmin = kwargs['XMin']
@@ -191,14 +210,8 @@ class Polynomial(PixelMap):
                 # ordering is 1., y, y^2, y^3 ... , x, xy, xy^2,
                 c = v.reshape(xOrder, yOrder)
             self.coeffs.append(np.array(c,copy=False))
-        return
-    def __call__(self, xy, c=None):
-        try:
-            x, y = xy[:,0], xy[:,1]
-            is1d = False
-        except (TypeError, IndexError):
-            x, y = xy
-            is1d = True
+
+    def __call__(self, x, y, c=None):
         x -= self.shift[0]
         y -= self.shift[1]
         x *= self.scale[0]
@@ -210,10 +223,7 @@ class Polynomial(PixelMap):
         except ImportError:
             xw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[0])
             yw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[1])
-        if is1d:
-            return np.array([xw,yw])
-        else:
-            return np.array([xw,yw]).T
+        return xw, yw
 
 class Template(PixelMap):
     '''Mapping defined by scaling of a 1-dimensional lookup table
@@ -226,7 +236,7 @@ class Template(PixelMap):
     # are very slow to get from YAML.
     libraries = {}
     
-    def __init__(self,name, **kwargs):
+    def __init__(self, name, **kwargs):
         super(Template,self).__init__(name)
         if kwargs['HasSplit']:
             raise ValueError('Template pixel map not coded for split templates')
@@ -268,22 +278,19 @@ class Template(PixelMap):
         self.vals = np.array(tab['Values'])
         self.args = float(tab['ArgStart']) + float(tab['ArgStep']) * \
           np.arange(self.vals.shape[0])
-        return
 
-    def __call__(self, xy, c=None):
-        try:
-            x, y = xy[:,0], xy[:,1]
-            is1d = False
-        except (TypeError, IndexError):
-            x, y = xy
-            is1d = True
+    def __call__(self, x, y, c=None):
         # Note that np.interp does not exploit the equal spacing of arguments???
         # C++ code Lookup1d.cpp uses endpoints when beyond table bounds, as does
         # np.interp() by default.
         if self.axis=='X':
-            x += np.interp(x, self.args, self.vals) * self.scale
+            x1 = np.interp(x, self.args, self.vals)
+            x1 *= self.scale
+            x += x1
         elif self.axis=='Y':
-            y += np.interp(y, self.args, self.vals) * self.scale
+            y1 = np.interp(y, self.args, self.vals)
+            y1 *= self.scale
+            y += y1
         elif self.axis=='R':
             xc = x - self.center[0]
             yc = y - self.center[1]
@@ -291,14 +298,13 @@ class Template(PixelMap):
             dr = np.interp(rad, self.args, self.vals)
             dr *= self.scale
             dr /= rad
-            x += xc * dr
-            y += yc * dr
+            xc *= dr
+            yc *= dr
+            x += xc
+            y += yc
         else:
             raise ValueError('Unknown Template axis type ' + self.axis)
-        if is1d:
-            return np.array([x,y])
-        else:
-            return np.array([x,y]).T
+        return x, y
 
 class Piecewise(PixelMap):
     '''Mapping defined by piecewise-linear function
@@ -306,7 +312,8 @@ class Piecewise(PixelMap):
     @staticmethod
     def type():
         return 'Piecewise'
-    def __init__(self,name,**kwargs):
+
+    def __init__(self, name, **kwargs):
         super(Piecewise,self).__init__(name)
         self.axis = kwargs['Axis']  # 'X', 'Y', 'R"
         if self.axis=='R':
@@ -317,13 +324,8 @@ class Piecewise(PixelMap):
         self.vals[-1] = 0.
         self.args = float(kwargs['ArgStart']) + float(kwargs['ArgStep']) * \
           np.arange(self.vals.shape[0])
-    def __call__(self, xy, c=None):
-        try:
-            x, y = xy[:,0], xy[:,1]
-            is1d = False
-        except (TypeError, IndexError):
-            x, y = xy
-            is1d = True
+
+    def __call__(self, x, y, c=None):
         # Note that np.interp does not exploit the equal spacing of arguments???
         if self.axis=='X':
             x += np.interp(x, self.args, self.vals)
@@ -335,14 +337,13 @@ class Piecewise(PixelMap):
             rad = np.hypot(xc,yc)
             dr = np.interp(rad, self.args, self.vals)
             dr /= rad
-            x += xc * dr
-            y += yc * dr
+            xc *= dr
+            yc *= dr
+            x += xc
+            y += yc
         else:
             raise ValueError('Unknown Piecewise axis type ' + self.axis)
-        if is1d:
-            return np.array([x,y])
-        else:
-            return np.array([x,y]).T
+        return x, y
 
 class ColorTerm(PixelMap):
     '''Pixel map that is color times deviation of some other PixelMap
@@ -350,6 +351,7 @@ class ColorTerm(PixelMap):
     @staticmethod
     def type():
         return 'Color'
+
     def __init__(self, name, pmap=None, **kwargs):
         '''Need to provide the modified atomic PixelMap as map argument.
         '''
@@ -358,15 +360,20 @@ class ColorTerm(PixelMap):
             raise ValueError('No modified map specified for ColorTerm')
         self.pmap = pmap
         self.reference = float(kwargs['Reference'])
-    def __call__(self, xy, c=None):
+
+    def __call__(self, x, y, c=None):
         if c is None:
             raise ValueError('ColorTerm requires non-null c argument')
-        xyw = self.pmap(xy,c)
-        # return xy + (c-self.reference) * (xyw-xy)
-        xyw -= xy
-        xyw *= (c-self.reference)
-        xyw += xy
-        return xyw
+        x1 = np.array(x)
+        y1 = np.array(y)
+        xw, yw = self.pmap(x1, y1, c)
+        xw -= x
+        yw -= y
+        xw *= (c-self.reference)
+        yw *= (c-self.reference)
+        xw += x
+        yw += y
+        return xw, yw
 
 class Composite(PixelMap):
     '''Pixel map defined as composition of other PixelMaps
@@ -374,18 +381,19 @@ class Composite(PixelMap):
     @staticmethod
     def type():
         return 'Composite'
+
     def __init__(self,name,elements):
         '''Create a compound PixelMap from a list of PixelMap elements
         '''
         super(Composite,self).__init__(name)
         self.elements = elements
-        return
-    def __call__(self, xy, c=None):
+
+    def __call__(self, x, y, c=None):
         # call all elements in succession
-        xyw = self.elements[0](xy,c)
+        x,y = self.elements[0](x,y,c)
         for el in self.elements[1:]:
-            xyw = el(xyw,c)
-        return xyw
+            x,y = el(x,y,c)
+        return x,y
 
 class WCS(PixelMap):
     '''Pixel map that is augmented by a projection from the world coordinates
@@ -403,36 +411,49 @@ class WCS(PixelMap):
         self.projection = projection
         self.scale = scale
         self.dest = None
-        return
+
     def reprojectTo(self, projection):
         self.dest = projection
-        return
-    def toSky(self, xy, c=None):
+
+    def toSky(self, x, y, c=None):
         ''' Return sky coordinates corresponding to array
         '''
-        return self.projection.toSky(self.pmap(xy,c) * self.scale)
+        # This is the front end user interface.  Let's not modify the user's nput x,y values.
+        # Everything else is allowed to modify the inputs to make the outputs more efficiently.
+        x1 = np.array(x, dtype=float)
+        y1 = np.array(y, dtype=float)
+        xw, yw = self.pmap(x1,y1,c)
+        xw *= self.scale
+        yw *= self.scale
+        return self.projection.toSky(xw, yw)
+
     def toPix(self, coords, c=None, guess=np.array([0.,0.])):
         ''' Return pixel coordinates corresponding to input SkyCoords.
         guess is a starting guess for solver, which can be either a single
         coordinate pair or an array matching coords length.
         '''
-        xyw = self.projection.toXY(coords)
-        xyw /= self.scale
-        xyp = np.zeros_like(xyw) + guess  # Broadcasts to same dimensions as input
-        self.pmap.inverse(xyw, xyp, c)  # ??? tolerance???
-        if coords.ndim == 1:
-            xyp = np.squeeze(xyp)
-        return xyp
-    def __call__(self,xy,c=None):
+        xw, yw = self.projection.toXY(coords)
+        xw /= self.scale
+        yw /= self.scale
+        xp = np.empty_like(xw)
+        yp = np.empty_like(yw)
+        xp.fill(guess[0])
+        yp.fill(guess[1])
+        xp, yp = self.pmap.inverse(xw, yw, xp, yp, c)  # ??? tolerance???
+        return xp, yp
+
+    def __call__(self, x, y, c=None):
         '''Map the input coordinates to the coordinates either in the original
         projection, or in the reprojected system if one has been given.
         '''
-        xyw = self.pmap(xy,c)
+        x,y = self.pmap(x,y,c)
         if self.dest is not None:
             # Execute reprojection
-            coords = self.projection.toSky(xyw*self.scale)
-            xyw = self.dest.toXY(coords) / self.scale
-        return xyw
+            coords = self.projection.toSky(x*self.scale, y*self.scale)
+            x, y = self.dest.toXY(coords)
+            x /= self.scale
+            y /= self.scale
+        return x, y
     
 class PixelMapCollection(object):
     '''Class that holds a library of PixelMap/WCS specifications deserialized from
@@ -452,15 +473,15 @@ class PixelMapCollection(object):
             self.wcs = {}  # Empty dictionary
         self.realizedMap = {}
         self.realizedWCS = {}
-        return
 
     # Build a static dictionary of atomic PixelMap types
     atoms = {t.type():t for t in (Identity, Constant, Linear,
                                   Polynomial, Template, Piecewise)}
 
-    def hasMap(self,name):
+    def hasMap(self, name):
         return name in self.root
-    def hasWCS(self,name):
+
+    def hasWCS(self, name):
         return name in self.wcs
 
     def parseAtom(self, name, **kwargs):
@@ -471,7 +492,7 @@ class PixelMapCollection(object):
             raise ValueError('Unknown PixelMap atomic type ' + kwargs['Type'])
         return self.atoms[kwargs['Type']](name,**kwargs)
     
-    def getMap(self,name):
+    def getMap(self, name):
         ''' Return realization of PixelMap with given name
         '''
         if name in self.realizedMap:
@@ -495,7 +516,7 @@ class PixelMapCollection(object):
         self.realizedMap[name] = pmap
         return pmap            
 
-    def getWCS(self,name):
+    def getWCS(self, name):
         ''' Return realization of WCS with the given name
         '''
         if name in self.realizedWCS:
@@ -538,15 +559,15 @@ class ICRS(object):
     @staticmethod
     def type():
         return 'ICRS'
+
     def __init__(self):
-        return
-    def toSky(self,xy):
-        return co.SkyCoord(xy[:,0], xy[:,1], unit='deg')
-    def toXY(self,coords):
-        if coords.isscalar:
-            return np.array([coords.ra.degree, coords.dec.degree])
-        else:
-            return np.vstack(coords.ra.degree, coords.dec.degree).T
+        pass
+
+    def toSky(self, x, y):
+        return co.SkyCoord(x, y, unit='deg')
+
+    def toXY(self, coords):
+        return coords.ra.degree, coords.dec.degree
     
 class Gnomonic(object):
     ''' Class representing a gnomonic projection about some point on
@@ -557,6 +578,7 @@ class Gnomonic(object):
     @staticmethod
     def type():
         return 'Gnomonic'
+
     def __init__(self, ra, dec, rotation=0.):
         '''
         Create a Gnomonic transformation by specifying the position of the
@@ -571,14 +593,10 @@ class Gnomonic(object):
         pole = co.SkyCoord(self.ra, self.dec, unit='deg',frame='icrs')
         self.frame = pole.skyoffset_frame(rotation=co.Angle(self.rotation,unit='deg'))
 
-    def toSky(self,xy):
+    def toSky(self, x, y):
         '''
         Convert xy coordinates in the gnomonic project (in degrees) into SkyCoords.
         '''
-        try:
-            x, y = xy[:,0], xy[:,1]
-        except (TypeError, IndexError):
-            x, y = xy
         try:
             import galsim
             pole = galsim.CelestialCoord(self.pole_ra * galsim.degrees,
@@ -628,10 +646,7 @@ class Gnomonic(object):
             if self.rotation != 0.:
                 s, c = (self.rotation * galsim.degrees).sincos()
                 x, y = x*c + y*s, -x*s + y*c
-            if coords.isscalar:
-                return np.array([x,y])
-            else:
-                return np.array([x,y]).T
+            return x, y
 
         except ImportError:
             if self.frame is None: self._set_fram()
@@ -640,8 +655,6 @@ class Gnomonic(object):
             x = np.cos(s.lat.radian)*np.cos(s.lon.radian)
             y = np.cos(s.lat.radian)*np.sin(s.lon.radian)
             z = np.sin(s.lat.radian)
-            out = np.vstack((y/x, z/x)).T * 180. / np.pi
-            if coords.isscalar:
-                return np.squeeze(out)
-            else:
-                return out
+            out_x = y/x * (180. / np.pi)
+            out_y = z/x * (180. / np.pi)
+            return out_x, out_y
