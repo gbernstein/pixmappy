@@ -80,6 +80,16 @@ def test_tpv():
         np.testing.assert_allclose(pos1.x, pos.x, rtol=1.e-6, atol=1.e-8)
         np.testing.assert_allclose(pos1.y, pos.y, rtol=1.e-6, atol=1.e-8)
 
+        jac1 = wcs1.jacobian(pos).getMatrix()
+        jac2 = wcs2.jacobian(pos).getMatrix()
+        jac3 = wcs1._wcs.jacobian(coord, step=0.0001) * 3600.  # degrees -> arcsec
+        jac3[0,:] *= -1  # Different definition of +x
+        np.testing.assert_allclose(jac1, jac2, rtol=1.e-8, atol=1.e-8)
+        # This one isn't particularly close, because Gary defined his Jacobian on the tangent plane
+        # (wherever the projection point is) rather than locally on the tangent plane centered
+        # at the object itself.
+        np.testing.assert_allclose(jac1, jac3, atol=1.e-3)
+
     # Now do all the coords at once
     xy = np.array(coords)
     ra1, dec1 = wcs1._radec(xy[:,0], xy[:,1])
@@ -100,12 +110,25 @@ def test_complex():
 
     for row in ref:
         print(row)
-        pos = galsim.PositionD(row['xpix'], row['ypix'])
-        sky = wcs.toWorld(pos, color=row['color'])
+        x = row['xpix']
+        y = row['ypix']
+        c = row['color']
+        pos = galsim.PositionD(x,y)
+        sky = wcs.toWorld(pos, color=c)
         ra = sky.ra / galsim.degrees
         dec = sky.dec / galsim.degrees
         np.testing.assert_allclose(ra, row['RA'], rtol=1.e-6)
         np.testing.assert_allclose(dec, row['Dec'], rtol=1.e-6)
+
+        pos1 = wcs.toImage(sky, color=c)
+        np.testing.assert_allclose(pos1.x, pos.x, rtol=1.e-6, atol=1.e-8)
+        np.testing.assert_allclose(pos1.y, pos.y, rtol=1.e-6, atol=1.e-8)
+
+        jac1 = wcs.jacobian(pos, color=c).getMatrix()
+        jac2 = wcs._wcs.jacobian([x,y], step=0.0001, c=c) * 3600.  # degrees -> arcsec
+        jac2[0,:] *= -1  # Different definition of +x
+        np.testing.assert_allclose(jac1, jac2, atol=1.e-2)
+
 
     # This WCS requires a color term.  Raises an exception if you don't provide it.
     np.testing.assert_raises(Exception, wcs.toWorld, pos)
