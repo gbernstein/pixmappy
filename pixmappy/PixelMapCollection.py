@@ -8,9 +8,9 @@ Capabilities include:
 * Execute inverse transformations using generic solver method
 
 All transformations can be done on arrays of coordinates as well as scalars.
-
-Pixel or world positions are to be numpy arrays of shape (2) or (N,2).
-Sky positions are RA, Dec in degrees.
+That is, the input (x,y) or (ra,dec) arguments may be either float values or
+numpy arrays.  In the latter case, the return values will also be numpy arrays.
+Sky positions, RA, Dec, are in degrees.
 
 Template PixelMaps access their templates from YAML-formatted files of their own.
 The CAL_PATH environment variable can be used to give a list of paths to search
