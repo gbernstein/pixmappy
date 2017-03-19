@@ -446,15 +446,19 @@ class WCS(PixelMap):
         '''Map the input coordinates to the coordinates either in the original
         projection, or in the reprojected system if one has been given.
         '''
-        x,y = self.pmap(x,y,c)
+        # This is the front end user interface.  Let's not modify the user's input x,y values.
+        # Everything else is allowed to modify the inputs to make the outputs more efficiently.
+        x1 = np.array(x, dtype=float)
+        y1 = np.array(y, dtype=float)
+        xw,yw = self.pmap(x1,y1,c)
         if self.dest is not None:
             # Execute reprojection
-            coords = self.projection.toSky(x*self.scale, y*self.scale)
-            x, y = self.dest.toXY(coords)
-            x /= self.scale
-            y /= self.scale
-        return x, y
-    
+            ra, dec = self.projection.toSky(xw*self.scale, yw*self.scale)
+            xw, yw = self.dest.toXY(ra, dec)
+            xw /= self.scale
+            yw /= self.scale
+        return xw, yw
+
 class PixelMapCollection(object):
     '''Class that holds a library of PixelMap/WCS specifications deserialized from
     a YAML file.  One can then request any PixelMap or WCS by name and be given a
