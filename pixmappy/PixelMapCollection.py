@@ -217,9 +217,9 @@ class Polynomial(PixelMap):
         x *= self.scale[0]
         y *= self.scale[1]
         try:
-            import galsim
-            xw = galsim.utilities.horner2d(x, y, self.coeffs[0])
-            yw = galsim.utilities.horner2d(x, y, self.coeffs[1])
+            from galsim.utilities import horner2d
+            xw = horner2d(x, y, self.coeffs[0])
+            yw = horner2d(x, y, self.coeffs[1])
         except ImportError:
             xw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[0])
             yw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[1])
