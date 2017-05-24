@@ -55,9 +55,9 @@ else:
                     pmc = PixelMapCollection(file_name)
                     if cache:
                         self.cache[file_name] = pmc
-                self._tag = 'file_name = ' + file_name
+                self._tag = 'file_name=%r'%file_name
             else:
-                self._tag = 'pmc = '+repr(pmc)
+                self._tag = 'pmc=%r'%pmc
             
             if pmc is None:
                 raise TypeError("Must provide either file_name or pmc")
@@ -148,7 +148,7 @@ else:
                     self.origin == other.origin )
 
         def __repr__(self):
-            return "galsim.GalSimWCS(%s, wcs_name=%s, origin=%r)"%(
+            return "pixmappy.GalSimWCS(%s, wcs_name=%r, origin=%r)"%(
                     self._tag, self._wcs_name, self.origin)
 
         def __hash__(self): return hash(repr(self))

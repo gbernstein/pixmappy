@@ -203,9 +203,29 @@ def test_sky():
     np.testing.assert_almost_equal(im.array.max(), 12.506965, 5)
     np.testing.assert_almost_equal(im.array.mean(), 12.243378, 5)
 
+def test_repr():
+    """Test some things like repr, pickling, etc. to make sure they are reasonable.
+    In particular, the naive pickle string used to be extremely long.
+    """
+    try:
+        import cPickle as pickle
+    except ImportError:
+        import pickle
+
+    wcs = pixmappy.GalSimWCS(dir='input', file_name='test.astro', exp=375294, ccdnum=14)
+
+    wcs_str = str(wcs)
+    wcs_repr = repr(wcs)
+
+    print('str(wcs) = ',wcs_str)
+    print('repr(wcs) = ',wcs_repr)
+    assert eval(wcs_repr) == wcs
+
+
 if __name__ == '__main__':
     test_basic()
     test_tpv()
     test_complex()
     test_cache()
     test_sky()
+    test_repr()
