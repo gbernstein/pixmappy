@@ -216,10 +216,35 @@ def test_repr():
 
     wcs_str = str(wcs)
     wcs_repr = repr(wcs)
+    wcs_pkl = pickle.dumps(wcs)
 
     print('str(wcs) = ',wcs_str)
     print('repr(wcs) = ',wcs_repr)
     assert eval(wcs_repr) == wcs
+
+    print('pickle.dumps(wcs) has len = ',len(wcs_pkl))
+    assert len(wcs_pkl) < 1.e5
+
+    # For informational purposes to see where all the length is happening.
+    # Mostly (now that _pmc is gone) in the tree-ring template.
+    print('dict = ',wcs.__dict__.keys())
+    for k in wcs.__dict__:
+        print('wcs.%s has len %d'%(k, len(pickle.dumps(wcs.__dict__[k]))))
+    for k in wcs._wcs.__dict__:
+        print('wcs._wcs.%s has len %d'%(k, len(pickle.dumps(wcs._wcs.__dict__[k]))))
+    for k in wcs._wcs.pmap.__dict__:
+        print('wcs._wcs.pmap.%s has len %d'%(k, len(pickle.dumps(wcs._wcs.pmap.__dict__[k]))))
+    for k in wcs._wcs.pmap.elements:
+        print('wcs._wcs.pmap.elements.%s has len %d'%(k, len(pickle.dumps(k))))
+    for k in wcs._wcs.pmap.elements[0].__dict__:
+        print('wcs._wcs.pmap.elements[0].%s has len %d'%(k, len(pickle.dumps(wcs._wcs.pmap.elements[0].__dict__[k]))))
+    for k in wcs._wcs.pmap.elements[0].elements:
+        print('wcs._wcs.pmap.elements[0].elements.%s has len %d'%(k, len(pickle.dumps(k))))
+    for k in wcs._wcs.pmap.elements[0].elements[0].__dict__:
+        print('wcs._wcs.pmap.elements[0].elements[0].%s has len %d'%(k, len(pickle.dumps(wcs._wcs.pmap.elements[0].elements[0].__dict__[k]))))
+
+    assert pickle.loads(wcs_pkl) == wcs
+
 
 
 if __name__ == '__main__':

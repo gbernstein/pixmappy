@@ -153,4 +153,11 @@ else:
 
         def __hash__(self): return hash(repr(self))
 
+        def __getstate__(self):
+            # The naive pickling works, but it includes _pmc, which is huge, and not actually
+            # necessary for the functioning of the object.  (It's just for information purposes
+            # really.)  So remove it from the dict to be pickled.
+            d = self.__dict__.copy()
+            d['_pmc'] = None
+            return d
 
