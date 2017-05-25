@@ -32,6 +32,10 @@ else:
                             [default: None]
         :param cache:       Cache this file's PixelMapCollection in the GalSimWCS.cache dict?
                             [default: True]
+        :param default_color:   The default color to use if this WCS involves color terms and
+                            `wcs.toWorld` or similar methods to not pass in a color term.
+                            [default: None, which means an exception will be raised if no color
+                            term is provided]
         """
         _req_params = { "file_name" : str }
         _opt_params = { "origin" : galsim.PositionD, "ccdnum": int }
@@ -42,8 +46,8 @@ else:
         cache = dict()
 
         def __init__(self, file_name=None, dir=None, pmc=None, wcs_name=None,
-                     exp=None, ccdnum=None, origin=None, cache=True):
-            self._color = None
+                     exp=None, ccdnum=None, origin=None, cache=True, default_color=None):
+            self._color = default_color
             if file_name is not None:
                 if dir is not None:
                     file_name = os.path.join(dir,file_name)
@@ -148,8 +152,12 @@ else:
                     self.origin == other.origin )
 
         def __repr__(self):
-            return "pixmappy.GalSimWCS(%s, wcs_name=%r, origin=%r)"%(
+            s = "pixmappy.GalSimWCS(%s, wcs_name=%r, origin=%r"%(
                     self._tag, self._wcs_name, self.origin)
+            if self._color is not None:
+                s += ', default_color=%r'%self._color
+            s += ')'
+            return s
 
         def __hash__(self): return hash(repr(self))
 
