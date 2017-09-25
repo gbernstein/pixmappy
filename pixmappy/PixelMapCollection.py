@@ -472,9 +472,13 @@ class PixelMapCollection(object):
     def __init__(self, filename, use_pkl=True):
         '''Create PixelMapCollection from the named YAML file
 
-        If reset_pkl=True, delete any existing pkl file that may exist in the directory.
-        The default operation is to write a pickle file named `filename + '.pkl'`, which
-        significantly speeds up subsequent I/O operations on this file.
+        If use_pkl=False, this will always read in the given `filename` YAML file.
+
+        If use_pkl=True (the default), look for a pickle file named `filename + '.pkl'`,
+        to read in instead, which tends to be much faster.  If it is not there, it
+        will read in the YAML file and then write out the pkl file as a pickled version
+        of the PixelMapCollection to significantly speed up subsequent I/O operations
+        on this file.
         '''
         pkl_filename = filename + '.pkl'
         if use_pkl and  os.path.isfile(pkl_filename):
