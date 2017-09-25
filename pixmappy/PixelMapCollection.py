@@ -27,6 +27,10 @@ import yaml
 from scipy.optimize import root
 import os
 import sys
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 from . import files
 
@@ -465,11 +469,24 @@ class PixelMapCollection(object):
     functional realization of map with that name.  Realizations are cached so that they
     are not remade every time.
     '''
-    def __init__(self, filename):
+    def __init__(self, filename, use_pkl=True):
         '''Create PixelMapCollection from the named YAML file
+
+        If reset_pkl=True, delete any existing pkl file that may exist in the directory.
+        The default operation is to write a pickle file named `filename + '.pkl'`, which
+        significantly speeds up subsequent I/O operations on this file.
         '''
-        with open(filename) as f:
-            self.root = yaml.load(f,Loader=Loader)
+        pkl_filename = filename + '.pkl'
+        if use_pkl and  os.path.isfile(pkl_filename):
+            with open(pkl_filename) as f:
+                self.root = pickle.load(f)
+        else:
+            with open(filename) as f:
+                self.root = yaml.load(f,Loader=Loader)
+            if use_pkl:
+                with open(pkl_filename, 'wb') as f:
+                    pickle.dump(self.root, f)
+
         # Extract the WCS specifications into their own dict
         if 'WCS' in self.root:
             self.wcs = self.root.pop('WCS')
