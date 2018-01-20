@@ -469,7 +469,7 @@ class PixelMapCollection(object):
     functional realization of map with that name.  Realizations are cached so that they
     are not remade every time.
     '''
-    def __init__(self, filename, use_pkl=True):
+    def __init__(self, filename=None, use_pkl=True):
         '''Create PixelMapCollection from the named YAML file
 
         If use_pkl=False, this will always read in the given `filename` YAML file.
@@ -480,16 +480,21 @@ class PixelMapCollection(object):
         of the PixelMapCollection to significantly speed up subsequent I/O operations
         on this file.
         '''
-        pkl_filename = filename + '.pkl'
-        if use_pkl and  os.path.isfile(pkl_filename):
-            with open(pkl_filename) as f:
-                self.root = pickle.load(f)
+
+        if filename is None:
+            # Start with empty dictionary
+            self.root = {}
         else:
-            with open(filename) as f:
-                self.root = yaml.load(f,Loader=Loader)
-            if use_pkl:
-                with open(pkl_filename, 'wb') as f:
-                    pickle.dump(self.root, f)
+            pkl_filename = filename + '.pkl'
+            if use_pkl and  os.path.isfile(pkl_filename):
+                with open(pkl_filename) as f:
+                    self.root = pickle.load(f)
+            else:
+                with open(filename) as f:
+                    self.root = yaml.load(f,Loader=Loader)
+                if use_pkl:
+                    with open(pkl_filename, 'wb') as f:
+                        pickle.dump(self.root, f)
 
         # Extract the WCS specifications into their own dict
         if 'WCS' in self.root:
@@ -503,6 +508,25 @@ class PixelMapCollection(object):
     atoms = {t.type():t for t in (Identity, Constant, Linear,
                                   Polynomial, Template, Piecewise)}
 
+    def update(self, d):
+        '''Read new map/wcs specs from a supplied dictionary.  Replaces
+        any duplicate names. Exception is generated if a new map or wcs
+        replaces one that has already been realized.  Dictionary will be altered
+        '''
+        # First check for overwrite of realized PixelMap:
+        intersect = filter(self.realizedMap.has_key, d.keys())
+        if intersect:
+            raise ValueError('attempt to update already-realized PixelMaps: '+str(intersect))
+        # And WCS:
+        if 'WCS' in d:
+            intersect = filter(self.realizedWCS.has_key, d['WCS'].keys())
+            if intersect:
+                raise ValueError('attempt to update already-realized WCS: '+str(intersect))
+        # Proceed with updates
+        if 'WCS' in d:
+            self.wcs.update(d.pop('WCS'))
+        self.root.update(d)
+        
     def hasMap(self, name):
         return name in self.root
 
