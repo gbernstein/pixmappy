@@ -259,7 +259,7 @@ class Template(PixelMap):
                 path1 = [files.data_dir]
                 if 'CAL_PATH' in os.environ:
                     path1 += os.environ['CAL_PATH'].split(':')
-                # And last resort will be current director
+                # And last resort will be current directory
                 path1.append('')
                 for p in path1:
                     if os.path.isfile(os.path.join(p,fname)):
