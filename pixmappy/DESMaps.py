@@ -23,7 +23,6 @@ def findOnPath(filename, envPathName='CAL_PATH'):
             paths.append('')
         for p in paths:
             path = os.path.join(p,filename)
-            print "Try",path ###
             if os.path.isfile(path):
                 return path
         raise IOError('Can not find file ' + filename + ' in path ' + envPathName)
@@ -51,7 +50,8 @@ class DESMaps(PixelMapCollection):
     
     def __init__(self, conn=None,
                      guts_file='y4a1.guts.astro',
-                     exposure_file='y4a1.expastro.fits', ccd_file='y4a1.ccdastro.fits'):
+                     exposure_file='y4a1.expastro.fits', ccd_file='y4a1.ccdastro.fits',
+                     **kwargs):
         '''Create PixelMapCollection that can create new entries for specified DES
         exposure number / CCD combinations using stored astrometric solutions.  These
         will be created using information in DESDM database if a connection is given.
@@ -61,9 +61,12 @@ class DESMaps(PixelMapCollection):
         conn:  easyaccess connection to dessci database.  
         exposure_file:  FITS file holding binary table of DES per-exposure info
         ccd_file: FITS file holding binary table of DES per-ccd info
+        Other kwargs passed to PixelMapCollection
         '''
 
-        super(DESMaps, self).__init__(filename=guts_file)
+        # Find the guts_file and initialize with it
+        path = findOnPath(guts_file)
+        super(DESMaps, self).__init__(filename=path, **kwargs)
 
         self.conn = conn
         if self.conn is None:
