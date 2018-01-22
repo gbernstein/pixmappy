@@ -155,10 +155,11 @@ class DESMaps(PixelMapCollection):
 
            # Make the DCR map if we don't have it
            if not self.hasMap(dcr_map):
+               d = self.exptab['dcr'][exp_row]
                dcr = {'Type':'Color',
                       'Reference': d[2],
                       'Function':{'Type':'Constant',
-                                  'Parameters':self.exptab['dcr'][:2].tolist()}}
+                                  'Parameters':d[:2].tolist()}}
                pixmaps[dcr_map] = dcr
 
         # Then the exposure solution

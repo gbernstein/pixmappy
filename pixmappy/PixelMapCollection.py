@@ -130,7 +130,7 @@ class Constant(PixelMap):
         if len(kwargs['Parameters']) !=2:
             raise TypeError('Wrong # of parameters in Constant PixelMap spec')
         self.shift = np.array(kwargs['Parameters'],dtype=float)
-
+        
     def __call__(self, x, y, c=None):
         x += self.shift[0]
         y += self.shift[1]
