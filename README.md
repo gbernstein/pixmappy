@@ -17,6 +17,7 @@ The `DESMaps` class derives from `PixelMapCollection` and is specialized to read
 * Acquire and unpack the `y4a1_astrometry.tar.gz` file containing the solution information.
 * Make sure that the environment variable `CAT_PATH` contains the directory into which these data were placed.
 * Run your python code!
+* Note that the color argument `c` is assumed to be _g-i_ for the DES data.  A value is required, since the solutions include differential chromatic refraction in the atmosphere and (for _gr_ bands) lateral color in the corrector.
 Here is an example program:
 ```python
 #!/usr/bin/env python
