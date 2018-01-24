@@ -130,7 +130,7 @@ class Constant(PixelMap):
         if len(kwargs['Parameters']) !=2:
             raise TypeError('Wrong # of parameters in Constant PixelMap spec')
         self.shift = np.array(kwargs['Parameters'],dtype=float)
-
+        
     def __call__(self, x, y, c=None):
         x += self.shift[0]
         y += self.shift[1]
@@ -259,7 +259,7 @@ class Template(PixelMap):
                 path1 = [files.data_dir]
                 if 'CAL_PATH' in os.environ:
                     path1 += os.environ['CAL_PATH'].split(':')
-                # And last resort will be current director
+                # And last resort will be current directory
                 path1.append('')
                 for p in path1:
                     if os.path.isfile(os.path.join(p,fname)):
