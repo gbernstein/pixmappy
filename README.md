@@ -15,10 +15,43 @@ The `DESMaps` class derives from `PixelMapCollection` and is specialized to read
 
 * Acquire this repository and run `python setup.py install`
 * Acquire and unpack the `y4a1_astrometry.tar.gz` file containing the solution information.
-* Make sure that the environment variable `CAT_PATH` contains the directory into which these data were placed.
+* Make sure that the environment variable `CAL_PATH` contains the directory into which these data were placed.
 * Run your python code!
-* Note that the color argument `c` is assumed to be _g-i_ for the DES data.  A value is required, since the solutions include differential chromatic refraction in the atmosphere and (for _gr_ bands) lateral color in the corrector.
-Here is an example program:
+* Note that the color argument `c` is assumed to be _g-i_ for the DES
+  data.  A value is required, since the solutions include differential
+  chromatic refraction in the atmosphere and (for _gr_ bands) lateral
+  color in the corrector.  Use a value of `c=0.61` if you don't know
+  your true color and want something that is not crazy.
+
+### Astrometric error estimation
+
+The astrometric solutions above reduce uncertainties in the
+instrumental map to <3 mas RMS.  The dominant errors that remain are
+(1) errors in the object centroid due to image noise, and (2)
+stochastic astrometric distortions due to atmospheric turbulence.
+The measurement errors (1) are typically taken from the
+`ERRAWIN_IMAGE` column of `SExtractor` catalogs, since all of the
+astrometric solutions are referenced to `[XY]WIN_IMAGE` centroids.
+
+The atmospheric errors (2) are anisotropic and differ from exposure to
+exposure as weather conditions vary.  We have estimated the covariance
+matrix of these efforts from the residuals to the fits used to
+establish the solutions.
+_[In detail: these are estimated from the 2-pt correlation function of the astrometric residuals, which eliminates terms such as measurement noise which should not correlate between distinct stars.]_
+A call to `DESMaps.getCovariance` will return the 2x2 covariance
+matrix estimated for a given exposure.  You should add to this the
+(usually diagonal) covariance matrix for measurement noise to obtain
+an estimate of the total error on a given source's position.  Some of
+these covariance estimates are questionable (usually due to too few
+stars used to estimate them).  These can be identified by calling
+`DESMaps.covarianceWarning().`
+
+A caveat is that these covariance matrices are estimates, and noisy
+ones at that.  Some may be defective but not flagged by the warning,
+so be cautious in your reliance on their accuracy.
+
+### Example program
+
 ```python
 #!/usr/bin/env python
 '''
@@ -84,5 +117,13 @@ print('xi,eta are', wcs(x,y,c))
 # We can get the local Jacobian of the map from pixel
 # to project coordinates
 print('Jacobian:',wcs.jacobian(x,y,c))
+
+# Now get the estimated covariance matrix of astrometric
+# errors for this exposure.
+cov = maps.getCovariance(expnum)
+print('Covariance matrix:',cov)
+# Is there a warning about quality of this covariance?
+print('Warning for covariance?',maps.covarianceWarning(expnum))
+
 ```
     

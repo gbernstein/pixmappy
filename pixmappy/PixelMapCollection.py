@@ -417,10 +417,13 @@ class WCS(PixelMap):
         self.dest = None
 
     def reprojectTo(self, projection):
+        '''(Re)define the WCS to yield world coordinates in the provided projection.
+        Typically this will be a Gnomonic object with a new RA,Dec as projection origin.
+        '''
         self.dest = projection
 
     def toSky(self, x, y, c=None):
-        ''' Return sky coordinates corresponding to array
+        ''' Return ICRS sky coordinates corresponding to x,y pixel coordinates (arrays ok)
         '''
         # This is the front end user interface.  Let's not modify the user's input x,y values.
         # Everything else is allowed to modify the inputs to make the outputs more efficiently.
@@ -432,7 +435,7 @@ class WCS(PixelMap):
         return self.projection.toSky(xw, yw)
 
     def toPix(self, ra, dec, c=None, guess=np.array([0.,0.])):
-        ''' Return pixel coordinates corresponding to input RA, Dec.
+        ''' Return pixel coordinates corresponding to input RA, Dec.x
         guess is a starting guess for solver, which can be either a single
         coordinate pair or an array matching coords length.
         '''

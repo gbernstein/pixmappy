@@ -63,4 +63,10 @@ print('xi,eta are', wcs(x,y,c))
 # to project coordinates
 print('Jacobian:',wcs.jacobian(x,y,c))
 
-    
+# Now get the estimated covariance matrix of astrometric
+# errors for this exposure.
+cov = maps.getCovariance(expnum)
+print('Covariance matrix:',cov)
+# Is there a warning about quality of this covariance?
+print('Warning for covariance?',maps.covarianceWarning(expnum))
+
