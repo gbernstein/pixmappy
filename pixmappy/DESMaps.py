@@ -25,7 +25,7 @@ def findOnPath(filename, envPathName='CAL_PATH'):
             path = os.path.join(p,filename)
             if os.path.isfile(path):
                 return path
-        raise IOError('Can not find file ' + filename + ' in path ' + envPathName)
+        raise IOError('Cannot find file ' + filename + ' in path ' + envPathName)
 
 class DESMaps(PixelMapCollection):
     '''DESMaps is an extension of PixelMapCollection that allows the
@@ -94,6 +94,30 @@ class DESMaps(PixelMapCollection):
         if not self.hasWCS(name):
             self._acquireWCS(expnum,detpos)
         return self.getWCS(name)
+
+    def getCovariance(self, expnum):
+        '''Return the estimated covariance matrix for atmospheric
+        astrometric errors in the selected exposure.  Units are
+        in mas^2.  [0] axis points east, [1] axis north. Call
+        covarianceWarning()  to check for potentially invalid matrix.
+        '''
+        # Find the row of exposure table corresponding to this expnum 
+        exp_row = np.searchsorted(self.exptab['expnum'],expnum)
+        cov = self.exptab['cov'][exp_row]
+        out = np.zeros( (2,2), dtype=float)
+        out[0,0] = cov[0]
+        out[1,1] = cov[1]
+        out[0,1] = cov[2]
+        out[1,0] = cov[2]
+        return out
+
+    def covarianceWarning(self,expnum):
+        '''Returns True if the estimated covariance matrix for expnum
+        is suspicious because of negative or too-small eigenvalues.
+        '''
+        # Find the row of exposure table corresponding to this expnum 
+        exp_row = np.searchsorted(self.exptab['expnum'],expnum)
+        return self.exptab['covwarn'][exp_row]
 
     def _acquireWCS(self, expnum, detpos):
         '''Acquire info on exposure/detpos combo from database/files and 
