@@ -86,6 +86,12 @@ ra,dec = wcs.toSky(x,y,c)
 
 print('x/y',x,y,'map to RA/Dec:',ra,dec)
 
+# We can also request a WCS by the CCDNUM of the device
+wcs2 = maps.getDESWCS(expnum, ccdnum)
+print('With CCDNUM:')
+ra,dec = wcs2.toSky(x,y,c)
+print('x/y',x,y,'map to RA/Dec:',ra,dec)
+
 # Map these back
 print('Inversion yields', wcs.toPix(ra,dec,c))
 

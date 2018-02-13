@@ -21,6 +21,7 @@ maps = DESMaps(use_pkl=False)
 # ValueError will be raised if there is no astrometric solution for this combination.
 expnum = 514157
 detpos = 'N8'
+ccdnum = 39
 wcs = maps.getDESWCS(expnum, detpos)
 
 # Map a single pair of pixel coordinates to RA, Dec, specifying object color
@@ -29,6 +30,12 @@ y = 3115.2
 c = 1.4
 ra,dec = wcs.toSky(x,y,c)
 
+print('x/y',x,y,'map to RA/Dec:',ra,dec)
+
+# We can also request a WCS by the CCDNUM of the device
+wcs2 = maps.getDESWCS(expnum, ccdnum)
+print('With CCDNUM:')
+ra,dec = wcs2.toSky(x,y,c)
 print('x/y',x,y,'map to RA/Dec:',ra,dec)
 
 # Map these back
