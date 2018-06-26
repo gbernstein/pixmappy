@@ -651,22 +651,25 @@ class Gnomonic(object):
         Convert xy coordinates in the gnomonic project (in degrees) into ra, dec.
         '''
         try:
-            import galsim
-            pole = galsim.CelestialCoord(self.pole_ra * galsim.degrees,
-                                         self.pole_dec * galsim.degrees)
-            x *= -3600.  # GalSim wants these in arcsec, not degrees
-            y *= 3600.   # Also, a - sign for x, since astropy uses +ra as +x direction.
+            import coord
+            pole = coord.CelestialCoord(self.pole_ra * coord.degrees,
+                                        self.pole_dec * coord.degrees)
+            deg_per_radian = coord.radians / coord.degrees
+            # Coord wants these in radians, not degrees
+            # Also, a - sign for x, since astropy uses +ra as +x direction.
+            x /= -deg_per_radian
+            y /= deg_per_radian
             # apply rotation
             if self.rotation != 0.:
                 # TODO: I'm not sure if I have the sense of the rotation correct here.
                 #       The "complex wcs" test has PA = 0, so I wasn't able to test it.
                 #       There may be a sign error on the s terms.
-                s, c = (self.rotation * galsim.degrees).sincos()
+                s, c = (self.rotation * coord.degrees).sincos()
                 x, y = x*c - y*s, x*s + y*c
             # apply projection
             ra, dec = pole.deproject_rad(x, y, projection='gnomonic')
-            ra *= galsim.radians / galsim.degrees
-            dec *= galsim.radians / galsim.degrees
+            ra *= deg_per_radian
+            dec *= deg_per_radian
             return ra, dec
 
         except ImportError:
@@ -689,18 +692,19 @@ class Gnomonic(object):
         Convert RA, Dec into xy values in the gnomonic projection, in degrees
         '''
         try:
-            import galsim
-            pole = galsim.CelestialCoord(self.pole_ra * galsim.degrees,
-                                         self.pole_dec * galsim.degrees)
-            ra *= galsim.degrees / galsim.radians
-            dec *= galsim.degrees / galsim.radians
+            import coord
+            pole = coord.CelestialCoord(self.pole_ra * coord.degrees,
+                                        self.pole_dec * coord.degrees)
+            deg_per_radian = coord.radians / coord.degrees
+            ra /= deg_per_radian
+            dec /= deg_per_radian
             # apply projection
             x, y = pole.project_rad(ra, dec, projection='gnomonic')
-            x /= -3600.
-            y /= 3600.
+            x *= -deg_per_radian
+            y *= deg_per_radian
             # apply rotation
             if self.rotation != 0.:
-                s, c = (self.rotation * galsim.degrees).sincos()
+                s, c = (self.rotation * coord.degrees).sincos()
                 x, y = x*c + y*s, -x*s + y*c
             return x, y
 

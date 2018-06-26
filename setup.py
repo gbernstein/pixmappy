@@ -2,13 +2,19 @@ from __future__ import print_function
 import sys,os,glob,re
 import select
 
-from distutils.core import setup
-import distutils
+try:
+    from setuptools import setup
+    import setuptools
+    print("Using setuptools version",setuptools.__version__)
+except ImportError:
+    from distutils.core import setup
+    import distutils
+    print("Using distutils version",distutils.__version__)
 
 print('Python version = ',sys.version)
 py_version = "%d.%d"%sys.version_info[0:2]  # we check things based on the major.minor version.
 
-dependencies = ['numpy', 'future', 'astropy', 'scipy', 'pyyaml']
+dependencies = ['numpy', 'future', 'astropy', 'scipy', 'pyyaml', 'LSSTDESC.Coord']
 
 with open('README.md') as file:
     long_description = file.read()
