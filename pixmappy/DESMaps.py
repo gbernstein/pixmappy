@@ -62,16 +62,16 @@ class DESMaps(PixelMapCollection):
 
     The user must also have access either to the
     DESDM database (by providing an easyaccess connection) or to a
-    FITS file containing the tabulated astrotrmetric info for each
-    exposure/ccd.
+    FITS file containing the tabulated astrometric info for each
+    exposure.
     '''
-    exposureName = 'D{:06d}Z{:03d}'  # String to format to get exposure name
+    exposureName = 'D{:06d}'  # String to format to get exposure name
     wcsName = 'D{:06d}/{:s}'         # String to format to get WCS name for expo/detpos pair
     basemapName = 'D{:06d}/{:s}/base' # String to format for PixelMap name
     
     def __init__(self, conn=None,
-                     guts_file='y4a1.guts.astro',
-                     exposure_file='y4a1.expastro.fits', ccd_file='y4a1.ccdastro.fits',
+                     guts_file='y6a1.guts.astro',
+                     exposure_file='y6a1.exposureinfo.fits',
                      **kwargs):
         '''Create PixelMapCollection that can create new entries for specified DES
         exposure number / CCD combinations using stored astrometric solutions.  These
@@ -92,12 +92,8 @@ class DESMaps(PixelMapCollection):
         self.conn = conn
         if self.conn is None:
             # Read in the tabular information from FITS files
-            path = findOnPath(ccd_file)
-            self.ccdtab = pf.getdata(path,1)
-
             path = findOnPath(exposure_file)
             self.exptab = pf.getdata(path,1)
-
         return
 
     def getDESMap(self, expnum, detpos):
@@ -120,20 +116,26 @@ class DESMaps(PixelMapCollection):
             self._acquireWCS(expnum,detpos)
         return self.getWCS(name)
 
-    def getCovariance(self, expnum):
+    def getCovariance(self, expnum, defaultError=10.):
         '''Return the estimated covariance matrix for atmospheric
         astrometric errors in the selected exposure.  Units are
         in mas^2.  [0] axis points east, [1] axis north. Call
         covarianceWarning()  to check for potentially invalid matrix.
+        A circular error of defaultError radius is returned if
+        there is no valid matrix for this expnum.
         '''
         # Find the row of exposure table corresponding to this expnum 
         exp_row = np.searchsorted(self.exptab['expnum'],expnum)
         cov = self.exptab['cov'][exp_row]
         out = np.zeros( (2,2), dtype=float)
-        out[0,0] = cov[0]
-        out[1,1] = cov[1]
-        out[0,1] = cov[2]
-        out[1,0] = cov[2]
+        if cov[0]<=0.:
+            out[0,0] = defaultError*defaultError
+            out[1,1] = out[0,0]
+        else:
+            out[0,0] = cov[0]
+            out[1,1] = cov[1]
+            out[0,1] = cov[2]
+            out[1,0] = cov[2]
         return out
 
     def covarianceWarning(self,expnum):
@@ -142,7 +144,7 @@ class DESMaps(PixelMapCollection):
         '''
         # Find the row of exposure table corresponding to this expnum 
         exp_row = np.searchsorted(self.exptab['expnum'],expnum)
-        return self.exptab['covwarn'][exp_row]
+        return self.exptab['cov'][exp_row][0] <= 0
 
     def _acquireWCS(self, expnum, detpos):
         '''Acquire info on exposure/detpos combo from database/files and 
@@ -152,28 +154,10 @@ class DESMaps(PixelMapCollection):
         if self.conn is not None:
             raise NotImplementedError('Database access to astrometry solutions not ready yet')
 
-        # Find row of the ccdtable containing this expnum/detpos
-        i0 = np.searchsorted(self.ccdtab['expnum'],expnum)
-        # Desired detpos might be anywhere within next 62 rows of first expnum
-        tmp = np.where( np.logical_and( self.ccdtab['expnum'][i0:i0+62]==expnum,
-                                        self.ccdtab['detpos'][i0:i0+62]==detpos))[0]
-        if len(tmp)<1:
-            raise ValueError('No CCD solution found for ' + self.wcsName.format(expnum,detpos))
-        elif len(tmp)>1:
-            raise ValueError('Error, multiple CCD solutions for ' + self.wcsName.format(expnum,detpos))
-
-        ccd_row = i0 + tmp[0]
-        zone = self.ccdtab['zone'][ccd_row]
-
-        # Find the row of exposure table corresponding to this expnum / zone
+        # Find the row of exposure table corresponding to this expnum 
         exp_row = np.searchsorted(self.exptab['expnum'],expnum)
-        # Search for match
-        while True:
-            if exp_row > len(self.exptab) or self.exptab['expnum'][exp_row]!=expnum:
-                raise ValueError('No  solution found for expnum/zone {:06d}/{:03d}'.format(expnum,zone))
-            if self.exptab['zone'][exp_row]==zone:
-                break
-            exp_row = exp_row + 1
+        if exp_row > len(self.exptab) or self.exptab['expnum'][exp_row]!=expnum:
+            raise ValueError('No  solution found for expnum/zone {:06d}/{:03d}'.format(expnum,zone))
             
         # Make a dictionary that we'll add to the PixelMapCollection
         pixmaps = {}
@@ -193,7 +177,7 @@ class DESMaps(PixelMapCollection):
 
         # Build the PixelMap elements of this map:
         # Start with the instrumental solution, already in PixelMapCollection:
-        elements = ['{:s}{:s}/{:s}'.format(self.exptab['filter'][exp_row],
+        elements = ['{:s}{:s}/{:s}'.format(self.exptab['band'][exp_row],
                                            self.exptab['epoch'][exp_row],
                                            detpos)]
 
@@ -212,7 +196,7 @@ class DESMaps(PixelMapCollection):
                pixmaps[dcr_map] = dcr
 
         # Then the exposure solution
-        expo_map = self.exposureName.format(expnum,zone)
+        expo_map = self.exposureName.format(expnum)
         elements.append(expo_map)
 
         # Add the composite to the new pixmaps
@@ -235,10 +219,5 @@ class DESMaps(PixelMapCollection):
                         'Coefficients': self.exptab['ypoly'][exp_row].tolist()}}
             pixmaps[expo_map] = poly
 
-
         # Add new pixmaps to the PixelMapCollection
         self.update(pixmaps)
-
-
-        
-
