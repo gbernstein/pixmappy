@@ -61,16 +61,17 @@ class DESTweak():
         for hdu in ff[1:]:
             detpos = hdu.header['EXTNAME']
             binpix = hdu.header['BINPIX']
-            nx = hdu.data.shape[1]
-            ny = hdu.data.shape[2]
+            nx = hdu.data.shape[2]
+            ny = hdu.data.shape[1]
             # Locate grid points, in 1-indexed pixel system
             xvals = binpix * np.arange(nx) + 0.5*binpix + 1
             yvals = binpix * np.arange(ny) + 0.5*binpix + 1
             bbox = [1, nx*binpix+1, 1, ny*binpix+1]
             # Create linear spline for x and y components
-            self.tweaks[detpos] = (RectBivariateSpline(xvals, yvals, hdu.data[0],
+            # Note that data array comes in with (y,x) indexing
+            self.tweaks[detpos] = (RectBivariateSpline(xvals, yvals, hdu.data[0].transpose(),
                                                            bbox=bbox, kx=1, ky=1),
-                                   RectBivariateSpline(xvals, yvals, hdu.data[0],
+                                   RectBivariateSpline(xvals, yvals, hdu.data[0].transpose(),
                                                            bbox=bbox, kx=1, ky=1))
         ff.close()
         return
