@@ -1,6 +1,7 @@
 import os
 import astropy.io.fits as pf
 import numpy as np
+from scipy.interpolate import RectBivariateSpline
 
 from . import PixelMapCollection, Identity, Constant, ColorTerm, Polynomial, Composite, WCS
 
@@ -48,6 +49,46 @@ def arg2detpos(arg_in):
     else:
         raise ValueError('DECam CCD number must be str or int')
 
+class DESTweak():
+    '''DESTweak applies a 2d lookup table of astrometric corrections to
+    measured pixel positions, based on gridded mean astrometric residuals
+    for each CCD.'''
+    def __init__(self, resids_file='y6a1.astroresids.fits'):
+        # Open the file of tweaks and create spline lookup tables for each
+        # device
+        ff = pf.open(findOnPath(resids_file))
+        self.tweaks = {}
+        for hdu in ff[1:]:
+            detpos = hdu.header['EXTNAME']
+            binpix = hdu.header['BINPIX']
+            nx = hdu.data.shape[1]
+            ny = hdu.data.shape[2]
+            # Locate grid points, in 1-indexed pixel system
+            xvals = binpix * np.arange(nx) + 0.5*binpix + 1
+            yvals = binpix * np.arange(ny) + 0.5*binpix + 1
+            bbox = [1, nx*binpix+1, 1, ny*binpix+1]
+            # Create linear spline for x and y components
+            self.tweaks[detpos] = (RectBivariateSpline(xvals, yvals, hdu.data[0],
+                                                           bbox=bbox, kx=1, ky=1),
+                                   RectBivariateSpline(xvals, yvals, hdu.data[0],
+                                                           bbox=bbox, kx=1, ky=1))
+        ff.close()
+        return
+    def tweak(self, detpos, xpos, ypos):
+        # return adjusted xpos and ypos arrays with values from lookuptables
+        dp = arg2detpos(detpos)
+        if dp not in self.tweaks:
+            raise IndexError('No tweaks available for detpos',dp)
+        dx = self.tweaks[dp][0](xpos,ypos,grid=False)
+        dy = self.tweaks[dp][1](xpos,ypos,grid=False)
+        return xpos-dx, ypos-dy
+    def tweakTable(self, tab, detpos, xkey='xpix', ykey='ypix'):
+        # Tweak the two columns of the table giving pixel positions of objects
+        xx, yy = self.tweak(detpos, tab[xkey],tab[ykey])
+        tab[xkey] = xx
+        tab[ykey] = yy
+        return
+    
 class DESMaps(PixelMapCollection):
     '''DESMaps is an extension of PixelMapCollection that allows the
     user to build WCS/PixelMaps for DES survey exposures by extracting
