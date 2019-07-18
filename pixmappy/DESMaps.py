@@ -71,7 +71,7 @@ class DESTweak():
             # Note that data array comes in with (y,x) indexing
             self.tweaks[detpos] = (RectBivariateSpline(xvals, yvals, hdu.data[0].transpose(),
                                                            bbox=bbox, kx=1, ky=1),
-                                   RectBivariateSpline(xvals, yvals, hdu.data[0].transpose(),
+                                   RectBivariateSpline(xvals, yvals, hdu.data[1].transpose(),
                                                            bbox=bbox, kx=1, ky=1))
         ff.close()
         return
