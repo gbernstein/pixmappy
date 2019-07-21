@@ -49,43 +49,72 @@ def arg2detpos(arg_in):
     else:
         raise ValueError('DECam CCD number must be str or int')
 
-class DESTweak():
-    '''DESTweak applies a 2d lookup table of astrometric corrections to
+class DECamTweak():
+    '''DECamTweak applies a 2d lookup table of astrometric corrections to
     measured pixel positions, based on gridded mean astrometric residuals
-    for each CCD.'''
-    def __init__(self, resids_file='y6a1.astroresids.fits'):
+    for each CCD, and time-specific affine transforms per CCD.'''
+    def __init__(self, resids_file='y6a1.astroresids.fits',
+                     affine_file='y6a1.affine.fits'):
         # Open the file of tweaks and create spline lookup tables for each
         # device
-        ff = pf.open(findOnPath(resids_file))
-        self.tweaks = {}
-        for hdu in ff[1:]:
-            detpos = hdu.header['EXTNAME']
-            binpix = hdu.header['BINPIX']
-            nx = hdu.data.shape[2]
-            ny = hdu.data.shape[1]
-            # Locate grid points, in 1-indexed pixel system
-            xvals = binpix * np.arange(nx) + 0.5*binpix + 1
-            yvals = binpix * np.arange(ny) + 0.5*binpix + 1
-            bbox = [1, nx*binpix+1, 1, ny*binpix+1]
-            # Create linear spline for x and y components
-            # Note that data array comes in with (y,x) indexing
-            self.tweaks[detpos] = (RectBivariateSpline(xvals, yvals, hdu.data[0].transpose(),
+        if resids_file is None:
+            self.tweaks = None
+        else:
+            ff = pf.open(findOnPath(resids_file))
+            self.tweaks = {}
+            for hdu in ff[1:]:
+                detpos = hdu.header['EXTNAME']
+                binpix = hdu.header['BINPIX']
+                nx = hdu.data.shape[2]
+                ny = hdu.data.shape[1]
+                # Locate grid points, in 1-indexed pixel system
+                xvals = binpix * np.arange(nx) + 0.5*binpix + 1
+                yvals = binpix * np.arange(ny) + 0.5*binpix + 1
+                bbox = [1, nx*binpix+1, 1, ny*binpix+1]
+                # Create linear spline for x and y components
+                # Note that data array comes in with (y,x) indexing
+                self.tweaks[detpos] = (RectBivariateSpline(xvals, yvals, hdu.data[0].transpose(),
                                                            bbox=bbox, kx=1, ky=1),
                                    RectBivariateSpline(xvals, yvals, hdu.data[1].transpose(),
                                                            bbox=bbox, kx=1, ky=1))
-        ff.close()
+            ff.close()
+
+        if affine_file is None:
+            self.affine = None
+        else:
+            bigtab = pf.getdata(findOnPath(affine_file),1)
+            # Split the table up into little tables for each detpos
+            dps = np.unique(bigtab['detpos'])
+            self.affine = {}
+            for dp in dps:
+                self.affine[dp] = bigtab[bigtab['detpos']==dp]
         return
-    def tweak(self, detpos, xpos, ypos):
+    def tweak(self, detpos, mjd, xpos, ypos):
         # return adjusted xpos and ypos arrays with values from lookuptables
         dp = arg2detpos(detpos)
-        if dp not in self.tweaks:
-            raise IndexError('No tweaks available for detpos',dp)
-        dx = self.tweaks[dp][0](xpos,ypos,grid=False)
-        dy = self.tweaks[dp][1](xpos,ypos,grid=False)
-        return xpos-dx, ypos-dy
-    def tweakTable(self, tab, detpos, xkey='xpix', ykey='ypix'):
+        x = np.array(xpos)
+        y = np.array(ypos)
+        if self.tweaks is not None:
+            if dp not in self.tweaks:
+                raise IndexError('No 2d tweaks available for detpos',dp)
+            x -= self.tweaks[dp][0](xpos,ypos,grid=False)
+            y -= self.tweaks[dp][1](xpos,ypos,grid=False)
+
+        if self.affine is not None:
+            if dp not in self.affine:
+                raise IndexError('No affine tweaks available for detpos',dp)
+            # Find the row for this MJD
+            iRow = np.searchsorted(self.affine[dp]['mjd'], mjd, side='right')-1
+            rr = self.affine[dp][iRow]
+            x -= rr['x0'] + (rr['mag']+rr['e1'])*(xpos-1024.5) \
+                          + (rr['e2']+rr['rot'])*(ypos-2048.5)
+            y -= rr['y0'] + (rr['e2']-rr['rot'])*(xpos-1024.5) \
+                          + (rr['mag']-rr['e1'])*(ypos-2048.5)
+
+        return x,y
+    def tweakTable(self, tab, detpos, mjd, xkey='xpix', ykey='ypix'):
         # Tweak the two columns of the table giving pixel positions of objects
-        xx, yy = self.tweak(detpos, tab[xkey],tab[ykey])
+        xx, yy = self.tweak(detpos, mjd, tab[xkey],tab[ykey])
         tab[xkey] = xx
         tab[ykey] = yy
         return
@@ -167,6 +196,7 @@ class DESMaps(PixelMapCollection):
         there is no valid matrix for this expnum.
         '''
         # Find the row of exposure table corresponding to this expnum 
+        #(by default, searchsorted returns matching row if one is equal)
         exp_row = np.searchsorted(self.exptab['expnum'],expnum)
         cov = self.exptab['cov'][exp_row]
         out = np.zeros( (2,2), dtype=float)
