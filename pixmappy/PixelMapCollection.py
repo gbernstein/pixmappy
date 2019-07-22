@@ -511,6 +511,11 @@ class PixelMapCollection(object):
     atoms = {t.type():t for t in (Identity, Constant, Linear,
                                   Polynomial, Template, Piecewise)}
 
+    # Give other code the ability to add new atomic types:
+    @classmethod
+    def addAtom(cls, newAtom):
+        cls.atoms[newAtom.type()] = newAtom
+        
     def update(self, d):
         '''Read new map/wcs specs from a supplied dictionary.  Replaces
         any duplicate names. Exception is generated if a new map or wcs

@@ -3,7 +3,7 @@ import astropy.io.fits as pf
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
-from . import PixelMapCollection, Identity, Constant, ColorTerm, Polynomial, Composite, WCS
+from . import PixelMap,PixelMapCollection, Identity, Constant, ColorTerm, Polynomial, Composite, WCS
 
 def findOnPath(filename, envPathName='CAL_PATH'):
     '''Look for existing file with the name <filename> using the paths
@@ -118,6 +118,47 @@ class DECamTweak():
         tab[xkey] = xx
         tab[ykey] = yy
         return
+
+class Tweak(PixelMap):
+    '''PixelMap that implements the small time- and detpos-dependent
+    adjustments to pixel positions described by the DECamTweak class above.
+    '''
+    @staticmethod
+    def type():
+        return 'Tweak'
+
+    # A class variable contains the DECamTweak instance and the files
+    # from which it came.  Mixing tweaks in the same run will be an error.
+
+    tweaker = None
+    residsFile = None
+    affineFile = None
+    
+    def __init__(self, name, **kwargs):
+        super(Tweak,self).__init__(name)
+        
+        if self.tweaker is None:
+            # Need to read in a tweak file.
+            if 'ResidsFile' in kwargs:
+                self.residsFile = kwargs['ResidsFile']
+            if 'AffineFile' in kwargs:
+                self.affineFile = kwargs['AffineFile']
+            self.tweaker = DECamTweak(resids_file = self.residsFile, affine_file = self.affineFile)
+        else:
+            # Check that any requested files agree with the one we have loaded already
+            if ('residsFile' in kwargs and residsFile != kwargs['residsFile']) or \
+               ('affineFile' in kwargs and affineFile != kwargs['affineFile']):
+                raise ValueError('Tweak maps use inconsistent lookup table files')
+               
+        # Now save away the mjd and detpos for this instance.
+        if 'Detpos' not in kwargs or 'MJD' not in kwargs:
+            raise ValueError('Missing Detpos or MJD in Tweak PixelMap')
+        self.dp = kwargs['Detpos']
+        self.mjd = kwargs['MJD']
+
+    def __call__(self, x, y, c=None):
+        return self.tweaker.tweak(self.dp, self.mjd, x, y)
+
     
 class DESMaps(PixelMapCollection):
     '''DESMaps is an extension of PixelMapCollection that allows the
@@ -139,10 +180,13 @@ class DESMaps(PixelMapCollection):
     exposureName = 'D{:06d}'  # String to format to get exposure name
     wcsName = 'D{:06d}/{:s}'         # String to format to get WCS name for expo/detpos pair
     basemapName = 'D{:06d}/{:s}/base' # String to format for PixelMap name
+    tweakName = 'D{:06d}/{:s}/twk'  # String to create Tweak map name
     
     def __init__(self, conn=None,
                      guts_file='y6a1.guts.astro',
                      exposure_file='y6a1.exposureinfo.fits',
+                     resids_file='y6a1.astroresids.fits',
+                     affine_file='y6a1.affine.fits',
                      **kwargs):
         '''Create PixelMapCollection that can create new entries for specified DES
         exposure number / CCD combinations using stored astrometric solutions.  These
@@ -152,10 +196,15 @@ class DESMaps(PixelMapCollection):
         guts_file: locally available YAML file with time-invariant portions of solution.
         conn:  easyaccess connection to dessci database.  
         exposure_file:  FITS file holding binary table of DES per-exposure info
-        ccd_file: FITS file holding binary table of DES per-ccd info
-        Other kwargs passed to PixelMapCollection
+        resids_file: FITS file holding 2d residual adjustment maps for DECam devices (None to skip)
+        affine_file: FITS file holding time-dependent DECam CCD affine tweaks (None to skip)
+
+        Other kwargs are passed to PixelMapCollection
         '''
 
+        # Add the tweaker to PixelMapCollection atoms
+        PixelMapCollection.addAtom(Tweak)
+        
         # Find the guts_file and initialize with it
         path = findOnPath(guts_file)
         super(DESMaps, self).__init__(filename=path, **kwargs)
@@ -165,6 +214,8 @@ class DESMaps(PixelMapCollection):
             # Read in the tabular information from FITS files
             path = findOnPath(exposure_file)
             self.exptab = pf.getdata(path,1)
+        self.residsFile = resids_file
+        self.affineFile = affine_file
         return
 
     def getDESMap(self, expnum, detpos):
@@ -248,10 +299,24 @@ class DESMaps(PixelMapCollection):
         pixmaps['WCS'] = {self.wcsName.format(expnum,detpos):wcs}
 
         # Build the PixelMap elements of this map:
-        # Start with the instrumental solution, already in PixelMapCollection:
-        elements = ['{:s}{:s}/{:s}'.format(self.exptab['band'][exp_row],
+        elements = []
+        
+        # Start with DECam tweaks, if they are in use:
+        if self.residsFile is not None or self.affineFile is not None:
+            twk = self.tweakName.format(expnum,detpos)
+            elements.append(twk)
+            if not self.hasMap(twk):
+                # Need to create the Tweak map
+                pixmaps[twk] = {'Type':'Tweak',
+                     'ResidsFile':self.residsFile,
+                     'AffineFile':self.affineFile,
+                     'Detpos':detpos,
+                      'MJD':self.exptab['mjd'][exp_row]}
+                
+        # Next the instrumental solution, already in PixelMapCollection:
+        elements.append('{:s}{:s}/{:s}'.format(self.exptab['band'][exp_row],
                                            self.exptab['epoch'][exp_row],
-                                           detpos)]
+                                           detpos))
 
         # Then DCR map, if this exposure needs one
         dcr_map = 'D{:06d}/dcr'.format(expnum)
