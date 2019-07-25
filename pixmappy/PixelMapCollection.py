@@ -472,7 +472,7 @@ class PixelMapCollection(object):
     functional realization of map with that name.  Realizations are cached so that they
     are not remade every time.
     '''
-    def __init__(self, filename=None, use_pkl=True):
+    def __init__(self, filename=None, use_pkl=False):
         '''Create PixelMapCollection from the named YAML file
 
         If use_pkl=False, this will always read in the given `filename` YAML file.
@@ -511,18 +511,23 @@ class PixelMapCollection(object):
     atoms = {t.type():t for t in (Identity, Constant, Linear,
                                   Polynomial, Template, Piecewise)}
 
+    # Give other code the ability to add new atomic types:
+    @classmethod
+    def addAtom(cls, newAtom):
+        cls.atoms[newAtom.type()] = newAtom
+        
     def update(self, d):
         '''Read new map/wcs specs from a supplied dictionary.  Replaces
         any duplicate names. Exception is generated if a new map or wcs
         replaces one that has already been realized.  Dictionary will be altered
         '''
         # First check for overwrite of realized PixelMap:
-        intersect = filter(self.realizedMap.has_key, d.keys())
+        intersect = set(self.realizedMap.keys()).intersection(set(d.keys()))
         if intersect:
             raise ValueError('attempt to update already-realized PixelMaps: '+str(intersect))
         # And WCS:
         if 'WCS' in d:
-            intersect = filter(self.realizedWCS.has_key, d['WCS'].keys())
+            intersect = set(self.realizedMap.keys()).intersection(set(d['WCS'].keys()))
             if intersect:
                 raise ValueError('attempt to update already-realized WCS: '+str(intersect))
         # Proceed with updates
