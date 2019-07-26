@@ -15,13 +15,16 @@ The `DESMaps` class derives from `PixelMapCollection` and is specialized to read
 
 * Acquire this repository and run `python setup.py install`
 * Acquire and unpack the `y6a1_astrometry.tar.gz` file containing the solution information.
-* Make sure that the environment variable `CAL_PATH` contains the directory into which these data were placed.
+* Make sure that the environment variable `CAL_PATH` contains the
+  directory into which these data were placed (xxx/Y6A1_ASTROMETRY).
 * Run your python code!
 * Note that the color argument `c` is assumed to be _g-i_ for the DES
   data.  A value is required, since the solutions include differential
   chromatic refraction in the atmosphere and (for _gr_ bands) lateral
   color in the corrector.  Use a value of `c=0.61` if you don't know
   your true color and want something that is not crazy.
+* If you request a solution for an exposure/CCD pair that is not in
+  the solution set, a `ValueError` exception will be raised.
 
 ### Astrometric error estimation
 
