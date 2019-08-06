@@ -14,7 +14,7 @@ The type of mapping that can be expressed is very flexible, and `PixelMaps` can 
 The `DESMaps` class derives from `PixelMapCollection` and is specialized to read astrometric solutions derived for all of the useful exposures in the Y6A1 internal data release.  Upon creation of an instance of this class, some YAML and FITS files containing WCS parameters for all these exposures are read.  The user can then request production of a `WCS` appropriate to any combination of exposure number and focal-plane detector.  Quick instructions for doing so are as follows:
 
 * Acquire this repository and run `python setup.py install`
-* Acquire and unpack the `y6a1_astrometry.tar.gz` file containing the solution information.
+* Acquire and unpack the `y6a1.astrometry.tar.gz` file containing the solution information.  If you are a DES member you can find it at https://cdcvs.fnal.gov/redmine/projects/des-y6/wiki/Y6A1_Astrometric_Solutions
 * Make sure that the environment variable `CAL_PATH` contains the
   directory into which these data were placed (xxx/Y6A1_ASTROMETRY).
 * Run your python code!
