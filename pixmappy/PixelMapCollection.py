@@ -27,10 +27,7 @@ import yaml
 from scipy.optimize import root
 import os
 import sys
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import json
 
 from . import files
 
@@ -472,32 +469,31 @@ class PixelMapCollection(object):
     functional realization of map with that name.  Realizations are cached so that they
     are not remade every time.
     '''
-    def __init__(self, filename=None, use_pkl=False):
+    def __init__(self, filename=None, use_json=True):
         '''Create PixelMapCollection from the named YAML file
 
-        If use_pkl=False, this will always read in the given `filename` YAML file.
+        If use_json=False, this will always read in the given `filename` YAML file.
 
-        If use_pkl=True (the default), look for a pickle file named `filename + '.pkl'`,
+        If use_json=True (the default), look for a json file named `filename + '.json'`,
         to read in instead, which tends to be much faster.  If it is not there, it
-        will read in the YAML file and then write out the pkl file as a pickled version
+        will read in the YAML file and then write out the json file as an alternate version
         of the PixelMapCollection to significantly speed up subsequent I/O operations
         on this file.
         '''
-
         if filename is None:
             # Start with empty dictionary
             self.root = {}
         else:
-            pkl_filename = filename + '.pkl'
-            if use_pkl and  os.path.isfile(pkl_filename):
-                with open(pkl_filename) as f:
-                    self.root = pickle.load(f)
+            json_filename = filename + '.json'
+            if use_json and  os.path.isfile(json_filename):
+                with open(json_filename) as f:
+                    self.root = json.load(f)
             else:
                 with open(filename) as f:
                     self.root = yaml.load(f,Loader=Loader)
-                if use_pkl:
-                    with open(pkl_filename, 'wb') as f:
-                        pickle.dump(self.root, f)
+                if use_json:
+                    with open(json_filename, 'w') as f:
+                        json.dump(self.root, f)
 
         # Extract the WCS specifications into their own dict
         if 'WCS' in self.root:
