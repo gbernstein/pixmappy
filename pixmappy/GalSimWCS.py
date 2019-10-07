@@ -25,6 +25,13 @@ else:
         :param pmc:         An existing pixmappy.PixelMapCollection instance [default: None]
         :param wcs_name:    The name of the WCS within the PixelMapCollection to use.
                             [default: None; either wcs_name or (exp and ccdnum) is required.]
+        :param exposure_file:  FITS file holding binary table of DES per-exposure info.
+                            [default: None; if present, this triggers using DESMaps rather than
+                            a regular PixelMapCollection.]
+        :param resids_file: FITS file holding 2d residual adjustment maps for DECam devices
+                            [default: None]
+        :param affine_file: FITS file holding time-dependent DECam CCD affine tweaks.
+                            [default: None
         :param exp:         The exposure number of the desired WCS. [default: None]
         :param ccdnum:      The CCD number of the desired WCS. [default: None]
         :param origin:      Optional origin position for the image coordinate system.
@@ -38,7 +45,8 @@ else:
                             term is provided]
         """
         _req_params = { "file_name" : str }
-        _opt_params = { "origin" : galsim.PositionD, "ccdnum": int }
+        _opt_params = { "origin" : galsim.PositionD, "ccdnum": int,
+                        "exposure_file" : str, "resids_file" : str, "affine_file" : str }
         _single_params = [ { "wcs_name" : str, "exp" : int } ]
         _takes_rng = False
         
@@ -46,17 +54,27 @@ else:
         cache = dict()
 
         def __init__(self, file_name=None, dir=None, pmc=None, wcs_name=None,
+                     exposure_file=None, resids_file=None, affine_file=None,
                      exp=None, ccdnum=None, origin=None, cache=True, default_color=None):
             self._color = default_color
             if file_name is not None:
                 if dir is not None:
                     file_name = os.path.join(dir,file_name)
+                    exposure_file = os.path.join(dir,exposure_file) if exposure_file else None
+                    resids_file = os.path.join(dir,resids_file) if resids_file else None
+                    affine_file = os.path.join(dir,affine_file) if affine_file else None
                 if pmc is not None:
                     raise TypeError("Cannot provide both file_name and pmc")
                 if file_name in self.cache:
                     pmc = self.cache[file_name]
                 else:
-                    pmc = PixelMapCollection(file_name)
+                    if exposure_file is None:
+                        pmc = PixelMapCollection(file_name)
+                    else:
+                        pmc = DESMaps(guts_file=file_name,
+                                      exposure_file=exposure_file,
+                                      resids_file=resids_file,
+                                      affine_file=affine_file)
                     if cache:
                         self.cache[file_name] = pmc
                 self._tag = 'file_name=%r'%file_name
