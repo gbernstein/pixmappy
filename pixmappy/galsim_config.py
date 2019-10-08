@@ -29,6 +29,6 @@ try:
 
     galsim.config.RegisterWCSType('Pixmappy', PixmappyBuilder())
 
-except:
+except ImportError:
     pass  # Don't fail if galsim isn't available.  Only fail it they try to use
           # the PixmappyBuilder and galsim isn't available.
