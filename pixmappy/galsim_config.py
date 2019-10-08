@@ -12,7 +12,7 @@ try:
         def buildWCS(self, config, base, logger):
 
             req = { "file_name" : str,
-                    "exp" : str,
+                    "exp" : int,
                     "ccdnum" : int
                   }
             opt = { "dir" : str,

@@ -10,6 +10,7 @@ else:
 
     from .decaminfo import DECamInfo
     from .PixelMapCollection import PixelMapCollection
+    from .DESMaps import DESMaps
     import os
     import astropy.coordinates
     import numpy as np
@@ -95,8 +96,11 @@ else:
                 self.exp = exp
                 self.ccdnum = ccdnum
                 self.ccdname = self.info.ccddict[ccdnum]
+            if exposure_file is None:
                 self._wcs_name = 'D%s/%s'%(self.exp, self.ccdname)
-            self._wcs = pmc.getWCS(self._wcs_name)
+                self._wcs = pmc.getWCS(self._wcs_name)
+            else:
+                self._wcs = pmc.getDESWCS(self.exp, self.ccdname)
 
             if origin is None:
                 self._origin = galsim.PositionD(0,0)
