@@ -89,16 +89,17 @@ class DECamTweak():
             for dp in dps:
                 self.affine[dp] = bigtab[bigtab['detpos']==dp]
         return
-    def tweak(self, detpos, mjd, xpos, ypos):
-        # return adjusted xpos and ypos arrays with values from lookuptables
+
+    def getDataFor(self, detpos, mjd):
+        """Get just the pieces of the big tables that are relevant for a single ccd and time
+        """
         dp = arg2detpos(detpos)
-        x = np.array(xpos)
-        y = np.array(ypos)
         if self.tweaks is not None:
             if dp not in self.tweaks:
                 raise IndexError('No 2d tweaks available for detpos',dp)
-            x -= self.tweaks[dp][0](xpos,ypos,grid=False)
-            y -= self.tweaks[dp][1](xpos,ypos,grid=False)
+            spline = self.tweaks[dp]
+        else:
+            spline = None
 
         if self.affine is not None:
             if dp not in self.affine:
@@ -106,12 +107,35 @@ class DECamTweak():
             # Find the row for this MJD
             iRow = np.searchsorted(self.affine[dp]['mjd'], mjd, side='right')-1
             rr = self.affine[dp][iRow]
+        else:
+            rr = None
+
+        return (spline, rr)
+
+    @staticmethod
+    def tweakFromData(data, xpos, ypos):
+        """Tweak using the data for a particular detpos and mjd.
+        """
+        spline, rr = data
+
+        x = np.array(xpos)
+        y = np.array(ypos)
+        if spline is not None:
+            x -= spline[0](xpos,ypos,grid=False)
+            y -= spline[1](xpos,ypos,grid=False)
+
+        if rr is not None:
             x -= rr['x0'] + (rr['mag']+rr['e1'])*(xpos-1024.5) \
                           + (rr['e2']+rr['rot'])*(ypos-2048.5)
             y -= rr['y0'] + (rr['e2']-rr['rot'])*(xpos-1024.5) \
                           + (rr['mag']-rr['e1'])*(ypos-2048.5)
 
         return x,y
+
+    def tweak(self, detpos, mjd, xpos, ypos):
+        return self.tweakFromData(self.getDataFor(detpos, mjd), xpos, ypos)
+
+
     def tweakTable(self, tab, detpos, mjd, xkey='xpix', ykey='ypix'):
         # Tweak the two columns of the table giving pixel positions of objects
         xx, yy = self.tweak(detpos, mjd, tab[xkey],tab[ykey])
@@ -139,11 +163,12 @@ class Tweak(PixelMap):
         
         if self.tweaker is None:
             # Need to read in a tweak file.
+            # Note: Setting class variables requires using class name, not self.
             if 'ResidsFile' in kwargs:
-                self.residsFile = kwargs['ResidsFile']
+                Tweak.residsFile = kwargs['ResidsFile']
             if 'AffineFile' in kwargs:
-                self.affineFile = kwargs['AffineFile']
-            self.tweaker = DECamTweak(resids_file = self.residsFile, affine_file = self.affineFile)
+                Tweak.affineFile = kwargs['AffineFile']
+            Tweak.tweaker = DECamTweak(resids_file = self.residsFile, affine_file = self.affineFile)
         else:
             # Check that any requested files agree with the one we have loaded already
             if ('residsFile' in kwargs and residsFile != kwargs['residsFile']) or \
@@ -155,20 +180,10 @@ class Tweak(PixelMap):
             raise ValueError('Missing Detpos or MJD in Tweak PixelMap')
         self.dp = kwargs['Detpos']
         self.mjd = kwargs['MJD']
+        self.tweak_data = self.tweaker.getDataFor(self.dp, self.mjd)
 
     def __call__(self, x, y, c=None):
-        return self.tweaker.tweak(self.dp, self.mjd, x, y)
-
-    def __getstate__(self):
-        # The tweaker object is huge, so don't serialize it.
-        # Delete it here and reload on the other side.
-        d = self.__dict__.copy()
-        d.pop('tweaker')
-        return d
-
-    def __setstate__(self, d):
-        self.__dict__ = d
-        self.tweaker = DECamTweak(resids_file=self.residsFile, affine_file=self.affineFile)
+        return DECamTweak.tweakFromData(self.tweak_data, x, y)
 
 
 class DESMaps(PixelMapCollection):
