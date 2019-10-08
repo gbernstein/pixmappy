@@ -246,6 +246,30 @@ def test_repr():
     assert pickle.loads(wcs_pkl) == wcs
 
 
+def test_config():
+    """Test using pixmappy as a valid wcs type in a GalSim config file.
+    """
+    config = {
+        "modules" : [ "pixmappy" ],
+
+        "image" : {
+            "wcs" : {
+                "type": "Pixmappy",
+                "dir": "input",
+                "file_name": "test.astro",
+                "exp":  375294,
+                "ccdnum": 14,
+            }
+        },
+    }
+
+    galsim.config.ImportModules(config)
+    wcs1 = galsim.config.BuildWCS(config["image"], "wcs", config)
+    wcs2 = pixmappy.GalSimWCS(file_name='test.astro', dir='input', exp=375294, ccdnum=14)
+    print('wcs1 = ',wcs1)
+    print('wcs2 = ',wcs2)
+    assert wcs1 == wcs2
+
 
 if __name__ == '__main__':
     test_basic()
@@ -254,3 +278,4 @@ if __name__ == '__main__':
     test_cache()
     test_sky()
     test_repr()
+    test_config()

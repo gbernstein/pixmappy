@@ -46,6 +46,7 @@ else:
         """
         _req_params = { "file_name" : str }
         _opt_params = { "origin" : galsim.PositionD, "ccdnum": int,
+                        "dir" : str,
                         "exposure_file" : str, "resids_file" : str, "affine_file" : str }
         _single_params = [ { "wcs_name" : str, "exp" : int } ]
         _takes_rng = False
