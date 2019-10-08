@@ -159,7 +159,18 @@ class Tweak(PixelMap):
     def __call__(self, x, y, c=None):
         return self.tweaker.tweak(self.dp, self.mjd, x, y)
 
-    
+    def __getstate__(self):
+        # The tweaker object is huge, so don't serialize it.
+        # Delete it here and reload on the other side.
+        d = self.__dict__.copy()
+        d.pop('tweaker')
+        return d
+
+    def __setstate__(self, d):
+        self.__dict__ = d
+        self.tweaker = DECamTweak(resids_file=self.residsFile, affine_file=self.affineFile)
+
+
 class DESMaps(PixelMapCollection):
     '''DESMaps is an extension of PixelMapCollection that allows the
     user to build WCS/PixelMaps for DES survey exposures by extracting
