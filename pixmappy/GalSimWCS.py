@@ -96,8 +96,9 @@ else:
                 self.exp = exp
                 self.ccdnum = ccdnum
                 self.ccdname = self.info.ccddict[ccdnum]
+                if exposure_file is None:
+                    self._wcs_name = 'D%s/%s'%(self.exp, self.ccdname)
             if exposure_file is None:
-                self._wcs_name = 'D%s/%s'%(self.exp, self.ccdname)
                 self._wcs = pmc.getWCS(self._wcs_name)
             else:
                 self._wcs = pmc.getDESWCS(self.exp, self.ccdname)
