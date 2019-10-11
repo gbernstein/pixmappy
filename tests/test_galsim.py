@@ -72,8 +72,8 @@ def test_tpv():
         sky2 = wcs2.toWorld(pos)
         print('  GalSimWCS: ',sky1)
         print('  FitsWCS: ',sky2)
-        np.testing.assert_allclose(sky1.ra.rad(), sky2.ra.rad(), rtol=1.e-8)
-        np.testing.assert_allclose(sky1.dec.rad(), sky2.dec.rad(), rtol=1.e-8)
+        np.testing.assert_allclose(sky1.ra.rad, sky2.ra.rad, rtol=1.e-8)
+        np.testing.assert_allclose(sky1.dec.rad, sky2.dec.rad, rtol=1.e-8)
 
         pos1 = wcs1.toImage(sky1)
         print('   Back to image: ',pos1)
@@ -187,7 +187,7 @@ def test_sky():
                  (im.bounds.xmax, im.bounds.ymin),
                  (im.bounds.xmin, im.bounds.ymax),
                  (im.bounds.xmax, im.bounds.ymax),
-                 (im.center().x, im.center().y) ]:
+                 (im.center.x, im.center.y) ]:
         val = im(x,y)
         area = wcs.pixelArea(galsim.PositionD(x,y))
         np.testing.assert_almost_equal(val/(area*sky_level), 1., 6,
