@@ -98,6 +98,8 @@ else:
                 self.ccdname = self.info.ccddict[ccdnum]
                 if exposure_file is None:
                     self._wcs_name = 'D%s/%s'%(self.exp, self.ccdname)
+                else:
+                    self._wcs_name = None
             if exposure_file is None:
                 self._wcs = pmc.getWCS(self._wcs_name)
             else:
@@ -117,7 +119,11 @@ else:
         def pmc(self): return self._pmc
 
         @property
-        def wcs_name(self): return self._wcs_name
+        def wcs_name(self):
+            # Note: older versions of pixmappy didn't set _wcs_name if it was None.
+            # This is fixed above, but to accommodate reading in older serialized pixmappy
+            # objects, we check for the attribute existing here.
+            return self._wcs_name if hasattr(self,'_wcs_name') else None
                 
         @property
         def origin(self): return self._origin
@@ -172,12 +178,12 @@ else:
         def __eq__(self, other):
             return (isinstance(other, GalSimWCS) and
                     self._tag == other._tag and
-                    self._wcs_name == other._wcs_name and
+                    self.wcs_name == other.wcs_name and
                     self.origin == other.origin )
 
         def __repr__(self):
             s = "pixmappy.GalSimWCS(%s, wcs_name=%r, origin=%r"%(
-                    self._tag, self._wcs_name, self.origin)
+                    self._tag, self.wcs_name, self.origin)
             if self._color is not None:
                 s += ', default_color=%r'%self._color
             s += ')'
