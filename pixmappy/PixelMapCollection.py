@@ -92,10 +92,19 @@ class PixelMap(object):
             return xp, yp
         else:
             if len(yp) != npts or len(yp) != npts or len(yw) != npts:
-                raise ValueError('Mismatch of xw, yw, xp, yp point counts in PixelMap.inverse')
+                raise ValueError('Mismatch of xw, yw, xp, yp, c point counts in PixelMap.inverse')
 
-            for i in range(npts):
-                xp[i], yp[i] = self.inverse(xw[i], yw[i], xp[i], yp[i], c, tol)
+            # Allow for color to either be a scalar or a vector:
+            if  c is None or type(c)==float or type(c)==int:
+                for i in range(npts):
+                    # c is None or a scalar:
+                    xp[i], yp[i] = self.inverse(xw[i], yw[i], xp[i], yp[i], c, tol)
+            else:
+                # c should be an array matching xy's:
+                if len(c) != npts:
+                    raise ValueError('Mismatch of c array size to xy in PixelMap.inverse')
+                for i in range(npts):
+                    xp[i], yp[i] = self.inverse(xw[i], yw[i], xp[i], yp[i], c[i], tol)
             return xp, yp
     
 '''
