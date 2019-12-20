@@ -95,7 +95,7 @@ class PixelMap(object):
                 raise ValueError('Mismatch of xw, yw, xp, yp, c point counts in PixelMap.inverse')
 
             # Allow for color to either be a scalar or a vector:
-            if  c is None or type(c)==float or type(c)==int:
+            if  c is None or type(c)==float or np.ndim(c)==0:
                 for i in range(npts):
                     # c is None or a scalar:
                     xp[i], yp[i] = self.inverse(xw[i], yw[i], xp[i], yp[i], c, tol)
