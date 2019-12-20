@@ -22,7 +22,7 @@ else:
         object (as `pmc`).
 
         :param file_name:   The yaml file with the PixelMapCollection description.
-        :param dir:         Optional directory to prepend to `file_name`. [default: None]
+        :param dir:         Optional directory to prepend to all filename arguments. [default: None]
         :param pmc:         An existing pixmappy.PixelMapCollection instance [default: None]
         :param wcs_name:    The name of the WCS within the PixelMapCollection to use.
                             [default: None; either wcs_name or (exp and ccdnum) is required.]
@@ -32,7 +32,7 @@ else:
         :param resids_file: FITS file holding 2d residual adjustment maps for DECam devices
                             [default: None]
         :param affine_file: FITS file holding time-dependent DECam CCD affine tweaks.
-                            [default: None
+                            [default: None]
         :param exp:         The exposure number of the desired WCS. [default: None]
         :param ccdnum:      The CCD number of the desired WCS. [default: None]
         :param origin:      Optional origin position for the image coordinate system.
