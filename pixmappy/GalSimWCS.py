@@ -41,7 +41,7 @@ else:
         :param cache:       Cache this file's PixelMapCollection in the GalSimWCS.cache dict?
                             [default: True]
         :param default_color:   The default color to use if this WCS involves color terms and
-                            `wcs.toWorld` or similar methods to not pass in a color term.
+                            `wcs.toWorld` or similar methods do not pass in a color term.
                             [default: None, which means an exception will be raised if no color
                             term is provided]
         """

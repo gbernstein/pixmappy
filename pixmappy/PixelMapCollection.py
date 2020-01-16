@@ -39,14 +39,12 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
-from .files import data_dir
-
 class PixelMap(object):
     ''' Base class for transformations from one 2d system ("pixel") to another ("world").
     Each derived class must implement __call__ to execute this transform on array of
-    shape (2) or (N,2).  Base class implements some routines such as taking local derivatives
+    shape (2) or (N,2).  This base class implements some routines such as taking local derivatives
     and solving for map inverse.
-    c is always a color (or array of them)
+    c is always a color (or array (N) of them)
     '''
     def __init__(self, name):
         self.name = name
@@ -55,6 +53,11 @@ class PixelMap(object):
         '''Use finite differences with indicated step size to get Jacobian derivative
         matrix at each point x, y.  If x, y are arrays then the returned array has
         shape (2,2,N) with [i,j,n] giving dx_i/dx_j at nth point.
+
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :param step: Step size (in pixel units) for finite difference calculation.
         '''
         dx = np.array(self(x+step, y, c))
         dx -= self(x-step, y, c)
@@ -66,11 +69,15 @@ class PixelMap(object):
         return out
 
     def inverse(self, xw, yw, xp, yp, c=None, tol=0.0001):
-        '''
-        Fill the arrays xp, yp with the solutions to PixelMap(xp, yp)=xw, yw.  The input values
-        of xp, yp are the initial guess.  Tolerance can be altered from default, which
-        is given in the pixel space ???
-        '''
+        ''' Fill the arrays xp, yp with the solutions to PixelMap(xp, yp)=xw, yw.  
+
+        :param xw,yw: input world coordinate arrays or scalars
+        :param xp,yp: output pixel coordinates from inverse maps.  The input values are taken
+                    as initial guesses for the root-finding routine.  
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :param tol: tolerance for termination of solution (in pixel space??).  [default: 1e-4]
+         '''
         # Need to call the solver row by row, will be slow.
         class resid(object):
             ''' Callable giving deviation of output from target
@@ -113,26 +120,37 @@ field "type" which corresponds to the "Type" field in the YAML node.
 '''
     
 class Identity(PixelMap):
-    '''Identity map
-    '''
     @staticmethod
     def type():
         return 'Identity'
 
     def __init__(self, name, **kwargs):
+        '''Identity map - no free parameters
+        :param name:  map name
+        '''
         super(Identity,self).__init__(name)
 
     def __call__(self, x, y, c=None):
-        return x, y
+        '''Apply identity transformation to pixel coordinates.
+
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :returns: xw, yw world coordinate arrays or scalars
+        '''
+        return x,y
 
 class Constant(PixelMap):
-    '''Constant shift pixel map
-    '''
     @staticmethod
     def type():
         return 'Constant'
 
     def __init__(self, name, **kwargs):
+        '''
+        Constant-shift pixel map.
+        :param Parameters: 2-element array of constant offsets
+        :param name:  map name
+        '''
         super(Constant,self).__init__(name)
         if 'Parameters' not in kwargs:
             raise TypeError('Missing Parameters in Constant PixelMap spec')
@@ -141,18 +159,30 @@ class Constant(PixelMap):
         self.shift = np.array(kwargs['Parameters'],dtype=float)
         
     def __call__(self, x, y, c=None):
+        '''Apply shift transformation to pixel coordinates.
+
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :returns: xw, yw world coordinate arrays or scalars
+        '''
         x += self.shift[0]
         y += self.shift[1]
         return x, y
 
 class Linear(PixelMap):
-    '''Affine transformation pixel map
-    '''
     @staticmethod
     def type():
         return 'Linear'
 
     def __init__(self, name, **kwargs):
+        '''Affine transformation pixel map
+        xw = a_xx * xp + a_xy * yp + b_x,
+        yw = a_yx * xp + a_yy * yp + b_y
+
+        :param Coefficients: 6-element array [b_x, a_xx, a_xy, b_y, a_yx, a_yy]
+        :param name:  map name
+        '''
         super(Linear,self).__init__(name)
         if 'Coefficients' not in kwargs:
             raise TypeError('Missing Coefficients in Linear PixelMap spec')
@@ -163,6 +193,13 @@ class Linear(PixelMap):
         self.m = p[:,1:]
 
     def __call__(self, x, y, c=None):
+        '''Apply linear transformation to pixel coordinates.
+
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :returns: xw, yw world coordinate arrays or scalars
+        '''
         # Note: with only a 2x2 matrix, it is faster to do by hand rather than using np.dot
         xw = self.m[0,0] * x
         yw = self.m[1,1] * y
@@ -184,6 +221,27 @@ class Polynomial(PixelMap):
         return 'Poly'
 
     def __init__(self, name, **kwargs):
+        '''Polynomial transformation pixel map
+        xp, yp are first linearly transformed so that
+        (XMin,XMax) -> (-1,+1)
+        (YMin,YMax) -> (-1,+1)
+        Then xw and yw are produced as polynomial functions of the rescaled x,y.
+
+        :param name:  map name
+        :param XMin,XMax: x values that are rescaled to -1, +1
+        :param YMin,YMax: y values that are rescaled to -1, +1
+        :param XPoly: dictionary describing xw polynomial
+        :param YPoly: dictionary describing yw polynomial
+
+        The polynomial dictionaries have the following keys:
+        OrderX:   Order of the polynomial in the rescaled x parameter
+        OrderY:   Order of the polynomial in the rescaled y parameter.  Defaults to OrderX.
+        SumOrder: boolean which, if true, limits polynomial terms to those
+                  with sum of powers in x and y to be <=OrderX.
+        Coefficients: array of polynomial coefficients, which are the free parameters
+                  of the map.  Ordering is 1, x, y, x^2, xy, y^2, x^3, xy^2, ...,
+                  i.e. first sort key is total order, second sort key is x order.
+        '''
         super(Polynomial,self).__init__(name)
         # Read the scaling bounds that will map interval into [-1,+1]
         xmin = kwargs['XMin']
@@ -225,6 +283,13 @@ class Polynomial(PixelMap):
             self.coeffs.append(np.array(c,copy=False))
 
     def __call__(self, x, y, c=None):
+        '''Polynomial transformation of pixel coordinates.
+
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :returns: xw, yw world coordinate arrays or scalars
+        '''
         x -= self.shift[0]
         y -= self.shift[1]
         x *= self.scale[0]
@@ -250,6 +315,33 @@ class Template(PixelMap):
     libraries = {}
     
     def __init__(self, name, **kwargs):
+        '''Transform pixel coordinates by adding multiple of a piecewise-linear
+        function of either xp, yp, or radius from some center.  The displacement
+        is also applied in either the x, y, or radial direction according to
+        whether the argument of the LUT is x, y, or radius.
+
+        Arguments outside the range of the LUT are assigned the values of the first
+        or last node of the LUT.
+
+        The map has one free parameter, which is a multiplicative factor to be
+        applied to this lookup-table function.
+
+        :param name:  map name
+        :param Parameter: the multiplicative scaling to apply (free parameter)
+        :param Filename:  the YAML file that contains library template specification
+        :param LowTable:  the name (key) of the desired template in the YAML library
+
+        The template library YAML file should be structured as a dictionary, with
+        each entry also being a dictionary.  The dict for a single template should
+        have these members:
+        `Axis`:  one of ['X','Y','R'] specifying whether the argument of the lookup
+                 function should be xp, yp, or `hypot(xp-x0,yp-y0)`.
+        `XCenter`,`YCenter`: the values of x0,y0 used if `Axis='R'`
+        `ArgStart`: the argument of the first node in the lookup table.
+        `ArgStep`:  the spacing between nodes of the lookup table
+        `Values`:   array of the values of the function at each node.
+        '''
+
         super(Template,self).__init__(name)
         if kwargs['HasSplit']:
             raise ValueError('Template pixel map not coded for split templates')
@@ -260,9 +352,9 @@ class Template(PixelMap):
             if os.path.isabs(fname):
                 # Just attempt read from an absolute path or if there's no path
                 path = fname
-            elif os.path.isfile(os.path.join(data_dir, fname)):
+            elif os.path.isfile(os.path.join(files.data_dir, fname)):
                 # If the file is in our data directory, use that.
-                path = os.path.join(data_dir, fname)
+                path = os.path.join(files.data_dir, fname)
             else:
                 # Search along path for the file
                 path1 = [files.data_dir]
@@ -293,6 +385,13 @@ class Template(PixelMap):
           np.arange(self.vals.shape[0])
 
     def __call__(self, x, y, c=None):
+        '''Add multiple of template to pixel coordinates.
+
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :returns: xw, yw world coordinate arrays or scalars
+        '''
         # Note that np.interp does not exploit the equal spacing of arguments???
         # C++ code Lookup1d.cpp uses endpoints when beyond table bounds, as does
         # np.interp() by default.
@@ -327,6 +426,28 @@ class Piecewise(PixelMap):
         return 'Piecewise'
 
     def __init__(self, name, **kwargs):
+        '''Transformation that adds a piecewise-linear
+        function of either xp, yp, or radius from some center.  The displacement
+        is also applied in either the x, y, or radial direction according to
+        whether the argument of the LUT is x, y, or radius.
+
+        The values at the first and last node of the LUT are fixed at zero, and
+        arguments outside the range of the LUT are assigned zero displacement as
+        well.  
+        The free parameters of this map are the values at each node of the LUT
+        (except for the first and last ones).
+
+        :param name:  map name
+        :param Parameter: the multiplicative scaling to apply (free parameter)
+        :param Axis:  one of ['X','Y','R'] specifying whether the argument of the lookup
+                 function should be xp, yp, or `hypot(xp-x0,yp-y0)`.
+        `XCenter`,`YCenter`: the values of x0,y0 used if `Axis='R'`
+        `ArgStart`: the argument of the first node in the lookup table.
+        `ArgStep`:  the spacing between nodes of the lookup table
+        `Parameters`:   array of the values of the function at each node.  The first
+                    and last members will be set to zero.  The remaining members
+                    will be free parameters of this map.
+        '''
         super(Piecewise,self).__init__(name)
         self.axis = kwargs['Axis']  # 'X', 'Y', 'R"
         if self.axis=='R':
@@ -339,6 +460,13 @@ class Piecewise(PixelMap):
           np.arange(self.vals.shape[0])
 
     def __call__(self, x, y, c=None):
+        '''Add piecewise-linear function to pixel coordinates.
+
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :returns: xw, yw world coordinate arrays or scalars
+        '''
         # Note that np.interp does not exploit the equal spacing of arguments???
         if self.axis=='X':
             x += np.interp(x, self.args, self.vals)
@@ -366,8 +494,16 @@ class ColorTerm(PixelMap):
         return 'Color'
 
     def __init__(self, name, pmap=None, **kwargs):
-        '''Need to provide the modified atomic PixelMap as map argument.
+        '''A PixelMap that is defined as the color of the source times
+        the deviation of some other PixelMap,
+        xw(x,y,c) = x + (c-Reference)*(pmap(x,y,c).x - x)
+        and similarly for y.
+
+        :param name: name for this transformation
+        :param Reference: the reference color at which the shift is zero
+        :param pmap: the `PixelMap` to scale by color
         '''
+
         super(ColorTerm,self).__init__(name)
         if pmap is None:
             raise ValueError('No modified map specified for ColorTerm')
@@ -375,6 +511,13 @@ class ColorTerm(PixelMap):
         self.reference = float(kwargs['Reference'])
 
     def __call__(self, x, y, c=None):
+        '''Apply color term to pixel coordinates.
+
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], an ValueError will be raised.
+        :returns: xw, yw world coordinate arrays or scalars
+        '''
         if c is None:
             raise ValueError('ColorTerm requires non-null c argument')
         x1 = np.array(x)
@@ -389,19 +532,28 @@ class ColorTerm(PixelMap):
         return xw, yw
 
 class Composite(PixelMap):
-    '''Pixel map defined as composition of other PixelMaps
-    '''
     @staticmethod
     def type():
         return 'Composite'
 
     def __init__(self,name,elements):
-        '''Create a compound PixelMap from a list of PixelMap elements
+        '''PixelMap defined as composition of other PixelMaps
+
+        :param name: the name of the compounded map
+        :param elements: a list of `PixelMap` objects in the order that they will
+        be applied to the pixel coordinates.
         '''
         super(Composite,self).__init__(name)
         self.elements = elements
 
     def __call__(self, x, y, c=None):
+        '''Apply compound transformation to pixel coordinates.
+
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :returns: xw, yw world coordinate arrays or scalars
+        '''
         # call all elements in succession
         x,y = self.elements[0](x,y,c)
         for el in self.elements[1:]:
@@ -409,16 +561,24 @@ class Composite(PixelMap):
         return x,y
 
 class WCS(PixelMap):
-    '''Pixel map that is augmented by a projection from the world coordinates
-    to definitive sky position, and toSky() will return RA, Dec arrays
-    corresponding to the inputs.
+    '''A WCS is a PixelMap that is augmented by a projection from the world coordinates
+    to definitive sky position (ra/dec). The method toSky() will return RA, Dec arrays
+    corresponding to the input pixel coordinates.
     Also can alternatively supply a second projection such that __call__ method 
     returns the coordinates in the second projection's system.
     A projection is anything that has toSky() and toPix() methods going to/from
-    RA, Dec.
-    Scale factor is multiplied into world coordinates to turn them into degrees.
+    RA, Dec.  The projections `ICRS` and `Gnomonic` are defined in this file.
+    The `scale` factor is multiplied into world coordinates to turn them into degrees.
     '''
     def __init__(self, name, pmap, projection, scale=1.):
+        '''Create a WCS with
+        :param name: the WCS name.  The `WCS` name can duplicate a `PixelMap` name since
+        these are maintained in separate namespaces.
+        :param pmap: a `PixelMap` giving the transformation from pixel to world coordinates
+        :param projection: the projection from world coordinates of the `PixelMap` into RA/Dec
+        :param scale: factor to apply to world coordinates to turn them into degrees, applied
+           before executing projection.
+        '''
         super(WCS,self).__init__(name)
         self.pmap = pmap
         self.projection = projection
@@ -428,11 +588,16 @@ class WCS(PixelMap):
     def reprojectTo(self, projection):
         '''(Re)define the WCS to yield world coordinates in the provided projection.
         Typically this will be a Gnomonic object with a new RA,Dec as projection origin.
+        :param projection: The Projection used to map RA,Dec back into a world coordinate system.
         '''
         self.dest = projection
 
     def toSky(self, x, y, c=None):
         ''' Return ICRS sky coordinates corresponding to x,y pixel coordinates (arrays ok)
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
+        :returns ra,dec: sky coordinates (in degrees)
         '''
         # This is the front end user interface.  Let's not modify the user's input x,y values.
         # Everything else is allowed to modify the inputs to make the outputs more efficiently.
@@ -444,9 +609,12 @@ class WCS(PixelMap):
         return self.projection.toSky(xw, yw)
 
     def toPix(self, ra, dec, c=None, guess=np.array([0.,0.])):
-        ''' Return pixel coordinates corresponding to input RA, Dec.x
+        ''' Return pixel coordinates x,y corresponding to input RA, Dec.x
         guess is a starting guess for solver, which can be either a single
         coordinate pair or an array matching coords length.
+        :param ra,dec: sky coordinate arrays or scalars (assumed in degrees)
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
         '''
         xw, yw = self.projection.toXY(ra, dec)
         xw /= self.scale
@@ -459,8 +627,11 @@ class WCS(PixelMap):
         return xp, yp
 
     def __call__(self, x, y, c=None):
-        '''Map the input coordinates to the coordinates either in the original
-        projection, or in the reprojected system if one has been given.
+        '''Map the input pixel coordinates to the world coordinates of the original
+        `PixelMap`, or to the world coordinates of the reprojected system if one has been given.
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  A scalar will be broadcast if x,y are arrays.
+                    If `c=None` [default], any color terms in the map will raise an exception.
         '''
         # This is the front end user interface.  Let's not modify the user's input x,y values.
         # Everything else is allowed to modify the inputs to make the outputs more efficiently.
@@ -479,20 +650,26 @@ class PixelMapCollection(object):
     '''Class that holds a library of PixelMap/WCS specifications deserialized from
     a YAML file.  One can then request any PixelMap or WCS by name and be given a
     functional realization of map with that name.  Realizations are cached so that they
-    are not remade every time.
+    are not remade every time.  The cache can be cleared to keep it from getting large.
     '''
     def __init__(self, filename=None, use_pkl=False):
         '''Create PixelMapCollection from the named YAML file
 
         If use_pkl=False, this will always read in the given `filename` YAML file.
 
-        If use_pkl=True (the default), look for a pickle file named `filename + '.pkl'`,
-        to read in instead, which tends to be much faster.  If it is not there, it
-        will read in the YAML file and then write out the pkl file as a pickled version
-        of the PixelMapCollection to significantly speed up subsequent I/O operations
-        on this file.
-        '''
+        If use_pkl=True (the default), look for a pickle file named `filename + '.pkl'`
+        to read instead, which tends to be much faster.  If `use_pkl=True` and
+        no pkl file exists, it will read in the YAML file and then write out the pkl
+        file as a pickled version of the PixelMapCollection to significantly speed up 
+        subsequent I/O operations on this file.
 
+        Specifications for new `PixelMap` or `WCS`'s can be added to this collection
+        by passing a dictionary to the `update()` method.
+
+        :param filename: path to YAML file specifying all `PixelMap`s and `WCS`s.  If `None`, begin
+        with an empty collection (which is the default).
+        :param use_pkl: `True` to read/write from pickled version of `filename`. [default=`False`]
+        '''
         if filename is None:
             # Start with empty dictionary
             self.root = {}
@@ -528,7 +705,8 @@ class PixelMapCollection(object):
     def update(self, d):
         '''Read new map/wcs specs from a supplied dictionary.  Replaces
         any duplicate names. Exception is generated if a new map or wcs
-        replaces one that has already been realized.  Dictionary will be altered
+        replaces one that has already been realized.
+        :param d: the dictionary of new map/wcs specs, which will be altered.
         '''
         # First check for overwrite of realized PixelMap:
         intersect = set(self.realizedMap.keys()).intersection(set(d.keys()))
@@ -545,21 +723,26 @@ class PixelMapCollection(object):
         self.root.update(d)
         
     def hasMap(self, name):
+        '''Return `True` iff a `PixelMap` of the given name is in this collection
+        '''
         return name in self.root
 
     def hasWCS(self, name):
+        '''Return `True` iff a `WCS` of the given name is in this collection
+        '''
         return name in self.wcs
 
     def parseAtom(self, name, **kwargs):
-        '''Build a PixelMap realization for one of the atomic types
-        from the specs in the kwargs dictionary
+        '''Build a PixelMap realization with the given name for one of the atomic types
+        from the specs in the kwargs dictionary.  Returns the `PixelMap` instance created.
         '''
         if kwargs['Type'] not in self.atoms:
             raise ValueError('Unknown PixelMap atomic type ' + kwargs['Type'])
         return self.atoms[kwargs['Type']](name,**kwargs)
     
     def getMap(self, name):
-        ''' Return realization of PixelMap with given name
+        ''' Return a realization of PixelMap with given name.  Build a realization
+        and add it to the cache if it was not already there.
         '''
         if name in self.realizedMap:
             return self.realizedMap[name]
@@ -583,7 +766,8 @@ class PixelMapCollection(object):
         return pmap            
 
     def getWCS(self, name):
-        ''' Return realization of WCS with the given name
+        ''' Return realization of WCS with the given name.  Build a realization
+        and add it to the cache if it was not already there.
         '''
         if name in self.realizedWCS:
             return self.realizedWCS[name]
@@ -613,6 +797,14 @@ class PixelMapCollection(object):
         # Cache it
         self.realizedWCS[name] = w
         return w
+
+    def clearCache(self):
+        '''Clear `PixelMap` and `WCS` caches.  Python garbage collection will get rid
+        of the ones that are not currently in use.
+        '''
+        self.realizedWCS = {}
+        self.realizedMap = {}
+        return
     
 ########################################################
 ### Projections: we have just two.
@@ -620,7 +812,7 @@ class PixelMapCollection(object):
 
 class ICRS(object):
     ''' Class giving the (trivial) projection from ICRS to ICRS coordinates, i.e.
-    "pixel" coordinates are just the ICRS RA and Dec in degrees.
+    "world" coordinates are just the ICRS RA and Dec in degrees.
     '''
     @staticmethod
     def type():
@@ -639,7 +831,7 @@ class Gnomonic(object):
     ''' Class representing a gnomonic projection about some point on
     the sky.  Can be used to go between xi,eta coordinates and ra,dec.
     All xy units are assumed to be in degrees as are the ra, dec, and PA of
-    the projection pole.
+    the projection pole.  Uses astropy.coordinates.
     '''
     @staticmethod
     def type():
@@ -650,6 +842,9 @@ class Gnomonic(object):
         Create a Gnomonic transformation by specifying the position of the
         pole (in ICRS degrees) and rotation angle of the axes relative
         to ICRS north.
+
+        :param ra,dec: ICRS RA and Declination of the pole of the projection.
+        :param rotation: position angle (in degrees) of the projection axes.
         '''
         self.pole_ra = ra
         self.pole_dec = dec
