@@ -27,10 +27,7 @@ import yaml
 from scipy.optimize import root
 import os
 import sys
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import json
 
 from . import files
 
@@ -656,15 +653,15 @@ class PixelMapCollection(object):
     functional realization of map with that name.  Realizations are cached so that they
     are not remade every time.  The cache can be cleared to keep it from getting large.
     '''
-    def __init__(self, filename=None, use_pkl=True):
+<<<<<<< HEAD
+    def __init__(self, filename=None, use_json=True):
         '''Create PixelMapCollection from the named YAML file
 
-        If use_pkl=False, this will always read in the given `filename` YAML file.
-
-        If use_pkl=True (the default), look for a pickle file named `filename + '.pkl'`
-        to read instead, which tends to be much faster.  If `use_pkl=True` and
-        no pkl file exists, it will read in the YAML file and then write out the pkl
-        file as a pickled version of the PixelMapCollection to significantly speed up 
+        If use_json=False, this will always read in the given `filename` YAML file.
+        If use_json=True (the default), look for a JSON file named `filename + '.json'`
+        to read instead, which tends to be much faster.  If `use_json=True` and
+        no json file exists, it will read in the YAML file and then write out the json
+        file as a version of the PixelMapCollection to significantly speed up 
         subsequent I/O operations on this file.
 
         Specifications for new `PixelMap` or `WCS`'s can be added to this collection
@@ -672,25 +669,25 @@ class PixelMapCollection(object):
 
         :param filename: path to YAML file specifying all `PixelMap`s and `WCS`s.  If `None`, begin
         with an empty collection (which is the default).
-        :param use_pkl: `True` to read/write from pickled version of `filename`. [default=`False`]
+        :param use_json: `True` to read/write from JSON version of `filename`. [default=`True`]
         '''
         if filename is None:
             # Start with empty dictionary
             self.root = {}
         else:
-            pkl_filename = filename + '.pkl'
-            if use_pkl and  os.path.isfile(pkl_filename):
-                with open(pkl_filename,'rb') as f:
-                    self.root = pickle.load(f)
+            json_filename = filename + '.json'
+            if use_json and  os.path.isfile(json_filename):
+                with open(json_filename) as f:
+                    self.root = json.load(f)
             else:
                 with open(filename) as f:
                     self.root = yaml.load(f,Loader=Loader)
-                if use_pkl:
+                if use_json:
                     try:
-                        with open(pkl_filename, 'wb') as f:
-                            pickle.dump(self.root, f)
+                        with open(json_filename, 'wb') as f:
+                            json.dump(self.root, f)
                     except:
-                        print("WARNING: could not pickle PixelMapCollection to",pkl_filename)
+                        print("WARNING: could not save PixelMapCollection as",json_filename)
 
         # Extract the WCS specifications into their own dict
         if 'WCS' in self.root:

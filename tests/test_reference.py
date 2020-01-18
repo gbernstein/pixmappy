@@ -10,7 +10,7 @@ import warnings
 def test_tpv():
     """Test that reading a tpv file is equivalent to a regular TPV FITS wcs"""
 
-    pmc = pixmappy.PixelMapCollection(os.path.join('input', 'tpv.yaml'))
+    pmc = pixmappy.PixelMapCollection(os.path.join('input', 'tpv.yaml'), use_json=False)
     wcs1 = pmc.getWCS('testwcs')
     with warnings.catch_warnings():
         # Ignore warnings about RADECSYS -> RADESYSa.
@@ -38,6 +38,24 @@ def test_tpv():
     ra2, dec2 = wcs2.wcs_pix2world(x, y, 1, ra_dec_order=True)
     np.testing.assert_allclose(ra, ra2, rtol=1.e-8)
     np.testing.assert_allclose(dec, dec2, rtol=1.e-8)
+
+    # This time, a fresh clone will not have the .json file yet, so maybe no difference from pmc.
+    pmc2 = pixmappy.PixelMapCollection(os.path.join('input', 'tpv.yaml'), use_json=True)
+    # This time will definitely read from the json file.
+    pmc3 = pixmappy.PixelMapCollection(os.path.join('input', 'tpv.yaml'), use_json=True)
+
+    wcs3 = pmc3.getWCS('testwcs')
+
+    for x,y in coords:
+        sky1 = wcs1.toSky(x,y)
+        sky3 = wcs3.toSky(x,y)
+        np.testing.assert_allclose(sky1, sky3, rtol=1.e-15)
+
+        # And reverse
+        x1,y1 = wcs1.toPix(*sky1)
+        x3,y3 = wcs3.toPix(*sky1)
+        np.testing.assert_allclose([x1,y1], [x3,y3], rtol=1.e-15, atol=1.e-15)
+
 
 
 def test_complex():
