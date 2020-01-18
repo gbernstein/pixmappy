@@ -23,11 +23,7 @@ image:
 
     wcs:
         type: Pixmappy
-        dir: /Users/Mike/Downloads/Y6A1_ASTROMETRY
-        file_name: y6a1.guts.astro
-        exposure_file: y6a1.exposureinfo.fits
-        affine_file: y6a1.affine.fits
-        resids_file: y6a1.astroresids.fits
+        use_DESMaps: True
         exp: 258864
         ccdnum: 14
 
