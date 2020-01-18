@@ -14,97 +14,178 @@ else:
     import os
     import astropy.coordinates
     import numpy as np
+    from . import files
 
     class GalSimWCS(galsim.wcs.CelestialWCS):
-        """A wrapper of the PixelMapCollection class that can be used as a galsim WCS type.
+        """A wrapper of the `PixelMapCollection` class that can be used as a galsim `WCS` type.
 
-        This can be constructed using either a `file_name` or an existing PixelMapCollection
-        object (as `pmc`).
+        This can be constructed using either:
+        * an existing `PixelMapCollection` object (supplied as `pmc`), or
+        * a generic serialized PixelMapCollection in a YAML file, 
+          (supplied by `yaml_file`), or
+        * The `DESMaps` class, which accesses files in the format of
+          the DES Y6A1_ASTROMETRY release, which one selects via
+          `useDESMaps=True`.  In this case one can supply names for
+          the `exposure_file,guts_file,resids_file,affine_file` that
+          the `DESMaps` needs, or any of these will use Y6A1 default
+          names if they are supplied as `None` (This is default
+          behavior).
 
-        :param file_name:   The yaml file with the PixelMapCollection description.
-        :param dir:         Optional directory to prepend to all filename arguments. [default: None]
+        Exactly one of these must be true: `pmc is not None`;
+        `yaml_file is not None`; `useDESMaps`.
+
+        The WCS within the collection is selected by name.  One can
+        either specify the name directly with `wcs_name`; or a name
+        can be constructed using DES conventions from an exposure
+        number `exp` and `ccdnum`.
+
         :param pmc:         An existing pixmappy.PixelMapCollection instance [default: None]
-        :param wcs_name:    The name of the WCS within the PixelMapCollection to use.
-                            [default: None; either wcs_name or (exp and ccdnum) is required.]
-        :param exposure_file:  FITS file holding binary table of DES per-exposure info.
-                            [default: None; if present, this triggers using DESMaps rather than
-                            a regular PixelMapCollection.]
-        :param resids_file: FITS file holding 2d residual adjustment maps for DECam devices
-                            [default: None]
-        :param affine_file: FITS file holding time-dependent DECam CCD affine tweaks.
-                            [default: None]
+        :param yaml_file: The yaml file with the PixelMapCollection
+                            description. [default: None]
+        :param useDESMaps:  If `True`, use `DESMaps` to construct WCS. [default: False]
+
+        :param dir:         Optional directory to prepend to all filename 
+                            arguments. [default: None]
+
+        :param wcs_name: The name of the WCS within the
+                            PixelMapCollection to use.  [default:
+                            None; either `wcs_name` or (`exp` and
+                            `ccdnum`) is required.  DESMaps require
+                            the exp+ccdnum.]
         :param exp:         The exposure number of the desired WCS. [default: None]
         :param ccdnum:      The CCD number of the desired WCS. [default: None]
+
+        :param exposure_file: FITS file holding binary table of DES
+                            per-exposure info for DESMaps.  [default:
+                            None; if `useDESMaps` then the file in the
+                            Y6A1_ASTRONOMY release will be used in
+                            this default case.]  
+        :param guts_file:   YAML file holding static DECam distortions
+                            for DESMaps.  [default: None; (same
+                            behavior as above).  
+        :param resids_file: FITS file holding 2d residual adjustment
+                            maps for DESMaps [default: None; (same
+                            behavior as above).  
+        :param affine_file: FITS file holding time-dependent DECam CCD
+                            affine tweaks for DESMaps [default: None;
+                            (same behavior as above).
+
         :param origin:      Optional origin position for the image coordinate system.
-                            If provided, it should be a PositionD or PositionI.
-                            [default: None]
+                            If provided, it should be a PositionD or
+                            PositionI.  [default: None]
         :param cache:       Cache this file's PixelMapCollection in the GalSimWCS.cache dict?
-                            [default: True]
-        :param default_color:   The default color to use if this WCS involves color terms and
-                            `wcs.toWorld` or similar methods do not pass in a color term.
-                            [default: None, which means an exception will be raised if no color
-                            term is provided]
+                            [default: True] 
+        :param default_color: The default color to use if this WCS involves color terms and
+                            `wcs.toWorld` or similar methods do not pass in a color value.
+                            [default: None, which means an exception will be raised if no
+                            color term is in the map and no color value is provided]
         """
-        _req_params = { "file_name" : str }
         _opt_params = { "origin" : galsim.PositionD, "ccdnum": int,
-                        "dir" : str,
+                        "dir" : str, "guts_file" : str,
                         "exposure_file" : str, "resids_file" : str, "affine_file" : str }
-        _single_params = [ { "wcs_name" : str, "exp" : int } ]
+        _single_params = [ { "wcs_name" : str, "exp" : int },
+                               {"yaml_file" : str, "useDESMaps":bool}]
         _takes_rng = False
         
         info = DECamInfo()
         cache = dict()
 
-        def __init__(self, file_name=None, dir=None, pmc=None, wcs_name=None,
-                     exposure_file=None, resids_file=None, affine_file=None,
-                     exp=None, ccdnum=None, origin=None, cache=True, default_color=None):
+        def __init__(self, pmc=None, yaml_file=None, use_DESMaps=False, dir=None,
+                     wcs_name=None, exp=None, ccdnum=None,
+                     exposure_file=None, guts_file=None, resids_file=None, affine_file=None,
+                     origin=None, cache=True, default_color=None):
             self._color = default_color
-            if file_name is not None:
-                if dir is not None:
-                    file_name = os.path.join(dir,file_name)
-                    exposure_file = os.path.join(dir,exposure_file) if exposure_file else None
-                    resids_file = os.path.join(dir,resids_file) if resids_file else None
-                    affine_file = os.path.join(dir,affine_file) if affine_file else None
-                if pmc is not None:
-                    raise TypeError("Cannot provide both file_name and pmc")
-                if file_name in self.cache:
-                    pmc = self.cache[file_name]
-                else:
-                    if exposure_file is None:
-                        pmc = PixelMapCollection(file_name)
-                    else:
-                        pmc = DESMaps(guts_file=file_name,
-                                      exposure_file=exposure_file,
-                                      resids_file=resids_file,
-                                      affine_file=affine_file)
-                    if cache:
-                        self.cache[file_name] = pmc
-                self._tag = 'file_name=%r'%file_name
-            else:
-                self._tag = 'pmc=%r'%pmc
-            
-            if pmc is None:
-                raise TypeError("Must provide either file_name or pmc")
-            self._pmc = pmc
-            if wcs_name is not None:
-                if exp is not None or ccdnum is not None:
-                    raise TypeError("Cannot provide both wcs_name and (exp,ccdnum)")
-                self._wcs_name = wcs_name
-            else:
-                if exp is None or ccdnum is None:
-                    raise TypeError("Must provide either wcs_name or (exp,ccdnum)")
-                self.exp = exp
-                self.ccdnum = ccdnum
-                self.ccdname = self.info.ccddict[ccdnum]
-                if exposure_file is None:
-                    self._wcs_name = 'D%s/%s'%(self.exp, self.ccdname)
-                else:
-                    self._wcs_name = None
-            if exposure_file is None:
-                self._wcs = pmc.getWCS(self._wcs_name)
-            else:
-                self._wcs = pmc.getDESWCS(self.exp, self.ccdname)
 
+            # Make sure only one method is in use:
+            count = int(pmc is not None) + int(yaml_file is not None) + int(use_DESMaps)
+            if count!=1:
+                raise TypeError("Must provide exactly one of yaml_file, pmc, or use_DESMaps")
+            
+            if pmc is not None:
+                self._pmc = pmc
+                self._tag = 'pmc=%r'%pmc  # Used in __repr__
+
+            if yaml_file is not None:
+                if dir is not None:
+                    yaml_file = os.path.join(dir,yaml_file)
+                if yaml_file in self.cache:
+                    pmc = self.cache[yaml_file]
+                else:
+                    pmc = PixelMapCollection(yaml_file)
+                    if cache:
+                        self.cache[yaml_name] = pmc
+                self._tag = 'yaml_file=%r'%yaml_file
+                self._pmc = pmc
+                
+            if use_DESMaps:
+                if exp is None or ccdnum is None:
+                    raise TypeError("exp and ccdnum must be provided when using DESMaps")
+
+                self._tag = 'use_DESMaps=True'
+                
+                if exposure_file is None:
+                    exposure_file = files.default_exposure_file
+                else:
+                    self._tag = self._tag + ', exposure_file=%s'%exposure_file
+
+                if guts_file is None:
+                    guts_file = files.default_guts_file
+                else:
+                    self._tag = self._tag + ', guts_file=%s'%guts_file
+
+                if resids_file is None:
+                    resids_file = files.default_resids_file
+                else:
+                    self._tag = self._tag + ', resids_file=%s'%resids_file
+
+                if affine_file is None:
+                    affine_file = files.default_affine_file
+                else:
+                    self._tag = self._tag + ', affine_file=%s'%affine_file
+                    
+                if dir is not None:
+                    exposure_file = os.path.join(dir,exposure_file)
+                    guts_file = os.path.join(dir,guts_file)
+                    resids_file = os.path.join(dir,resids_file)
+                    affine_file = os.path.join(dir,affine_file)
+                    self._tag = self._tag + ', dir=%s'%dir
+
+                # We'll cache the DESMaps object by the exposure_file name
+                if exposure_file in self.cache:
+                    pmc = self.cache[exposure_file]
+                else:
+                    pmc = DESMaps(guts_file=guts_file,
+                                  exposure_file=exposure_file,
+                                  resids_file=resids_file,
+                                  affine_file=affine_file)
+                    if cache:
+                        self.cache[exposure_file] = pmc
+                self._pmc = pmc
+
+            # Now extract the desired WCS from our PixelMapCollection or DESMaps
+            if use_DESMaps:
+                if exp is None or ccdnum is None:
+                    raise TypeError("DESMaps require exp,ccdnum")
+                ccdname = self.info.ccddict[ccdnum]
+                self._wcs_name = 'D%s/%s'%(exp, ccdname)  #Used by __eq__
+                self._wcs = pmc.getDESWCS(exp, ccdname)
+                self._tag = self._tag + ', exp=%r, ccdnum=%r'%(exp,ccdnum)
+                
+            else:
+                if wcs_name is None:
+                    if exp is None or ccdnum is None:
+                        raise TypeError("Must provide either wcs_name or (exp,ccdnum)")
+                    ccdname = self.info.ccddict[ccdnum]
+                    self._wcs_name = 'D%s/%s'%(exp, ccdname)
+                elif exp is not None or ccdnum is not None:
+                    raise TypeError("Cannot provide both wcs_name and (exp,ccdnum)")
+                else:
+                    self._wcs_name = wcs_name
+
+                self._wcs = pmc.getWCS(self._wcs_name)
+                self._tag = self._tag + ', wcs_name=%r'%self._wcs_name
+
+            # Set origin, if any
             if origin is None:
                 self._origin = galsim.PositionD(0,0)
             else:
@@ -142,7 +223,8 @@ else:
             currently being used by the cache.
 
             You can also modify the cache yourself if you want (say to remove a particular element
-            rather than all objects).  It is a dict indexed by the the file_name.
+            rather than all objects).  It is a dict indexed by the the yaml filename or the exposure
+            filename for DESMaps.
             """
             cls.cache.clear()
 
@@ -179,11 +261,11 @@ else:
             return (isinstance(other, GalSimWCS) and
                     self._tag == other._tag and
                     self.wcs_name == other.wcs_name and
-                    self.origin == other.origin )
+                    self.origin == other.origin ) 
 
         def __repr__(self):
-            s = "pixmappy.GalSimWCS(%s, wcs_name=%r, origin=%r"%(
-                    self._tag, self.wcs_name, self.origin)
+            # Should eval back into itself
+            s = "pixmappy.GalSimWCS(%s, origin=%r"%(self._tag,  self.origin)
             if self._color is not None:
                 s += ', default_color=%r'%self._color
             s += ')'
@@ -198,4 +280,3 @@ else:
             d = self.__dict__.copy()
             d['_pmc'] = None
             return d
-

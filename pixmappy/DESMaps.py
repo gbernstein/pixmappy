@@ -375,7 +375,7 @@ class DESMaps(PixelMapCollection):
         # Find the row of exposure table corresponding to this expnum 
         exp_row = np.searchsorted(self.exptab['expnum'],expnum)
         if exp_row > len(self.exptab) or self.exptab['expnum'][exp_row]!=expnum:
-            raise ValueError('No  solution found for expnum {:06d}'.format(expnum))
+            raise ValueError('No solution found for expnum {:06d}'.format(expnum))
             
         # Make a dictionary that we'll add to the PixelMapCollection
         pixmaps = {}
