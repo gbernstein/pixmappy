@@ -82,9 +82,10 @@ else:
         """
         _opt_params = { "origin" : galsim.PositionD, "ccdnum": int,
                         "dir" : str, "guts_file" : str,
-                        "exposure_file" : str, "resids_file" : str, "affine_file" : str }
+                        "exposure_file" : str, "resids_file" : str, "affine_file" : str,
+                        "default_color" : float}
         _single_params = [ { "wcs_name" : str, "exp" : int },
-                               {"yaml_file" : str, "useDESMaps":bool}]
+                               {"yaml_file" : str, "use_DESMaps":bool}]
         _takes_rng = False
         
         info = DECamInfo()

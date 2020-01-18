@@ -11,20 +11,24 @@ try:
 
         def buildWCS(self, config, base, logger):
 
-            req = { "file_name" : str,
-                    "exp" : int,
-                    "ccdnum" : int
-                  }
-            opt = { "dir" : str,
-                    "exposure_file" : str, "resids_file" : str, "affine_file" : str
-                  }
-            kwargs, safe = galsim.config.GetAllParams(config, base, req=req, opt=opt)
+            # req = GalSimWCS.{ "file_name" : str,
+            #         "exp" : int,
+            #         "ccdnum" : int
+            #       }
+            # opt = { "dir" : str,
+            #         "exposure_file" : str, "resids_file" : str, "affine_file" : str
+            #       }
+            
+            kwargs, safe = galsim.config.GetAllParams(config, base, opt=GalSimWCS._opt_params,
+                                                          single=GalSimWCS._single_params)
 
-            logger.info('Loading WCS for %s ccd %s',kwargs['exp'],kwargs['ccdnum'])
+            if 'exp' in kwargs:
+                logger.info('Loading WCS for exposure %s ccd %s',kwargs['exp'],kwargs['ccdnum'])
+            else:
+                logger.info('Loading WCS for map',kwargs['wcs_name'])
             wcs = GalSimWCS(**kwargs)
             logger.info('Done loading pixmappy WCS')
 
-            wcs._color = 0  # For now.  Maybe make this settable somehow.
             return wcs
 
     galsim.config.RegisterWCSType('Pixmappy', PixmappyBuilder())

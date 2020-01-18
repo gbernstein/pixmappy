@@ -290,14 +290,18 @@ class Polynomial(PixelMap):
                     If `c=None` [default], any color terms in the map will raise an exception.
         :returns: xw, yw world coordinate arrays or scalars
         '''
-        x -= self.shift[0]
-        y -= self.shift[1]
-        x *= self.scale[0]
-        y *= self.scale[1]
+        x =  x-self.shift[0]
+        y =  y-self.shift[1]
+        x =  x*self.scale[0]
+        y =  y*self.scale[1]
         try:
             from galsim.utilities import horner2d
             xw = horner2d(x, y, self.coeffs[0])
             yw = horner2d(x, y, self.coeffs[1])
+            # horner2d returns 0-d array if x,y are scalars.  Get them back
+            if np.ndim(xw)==0:
+                xw = xw.item()
+                yw = yw.item()
         except ImportError:
             xw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[0])
             yw = np.polynomial.polynomial.polyval2d(x, y, self.coeffs[1])

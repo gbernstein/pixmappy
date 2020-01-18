@@ -155,19 +155,17 @@ class DECamTweak():
         """
         spline, rr = data
 
-        x = np.array(xpos,dtype=float)
-        y = np.array(ypos,dtype=float)
         if spline is not None:
-            x -= spline[0](xpos,ypos,grid=False)
-            y -= spline[1](xpos,ypos,grid=False)
+            xpos, ypos = xpos-spline[0](xpos,ypos,grid=False), \
+                         ypos-spline[1](xpos,ypos,grid=False)
 
         if rr is not None:
-            x -= rr['x0'] + (rr['mag']+rr['e1'])*(xpos-1024.5) \
+            xpos = xpos - rr['x0'] + (rr['mag']+rr['e1'])*(xpos-1024.5) \
                           + (rr['e2']+rr['rot'])*(ypos-2048.5)
-            y -= rr['y0'] + (rr['e2']-rr['rot'])*(xpos-1024.5) \
+            ypos = ypos - rr['y0'] + (rr['e2']-rr['rot'])*(xpos-1024.5) \
                           + (rr['mag']-rr['e1'])*(ypos-2048.5)
 
-        return x,y
+        return xpos,ypos
 
     def tweak(self, detpos, mjd, xpos, ypos):
         '''Apply tweak to data
