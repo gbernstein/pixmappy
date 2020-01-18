@@ -160,9 +160,10 @@ class DECamTweak():
                          ypos-spline[1](xpos,ypos,grid=False)
 
         if rr is not None:
+            xx = np.copy(xpos) # temporary copy
             xpos = xpos - rr['x0'] + (rr['mag']+rr['e1'])*(xpos-1024.5) \
                           + (rr['e2']+rr['rot'])*(ypos-2048.5)
-            ypos = ypos - rr['y0'] + (rr['e2']-rr['rot'])*(xpos-1024.5) \
+            ypos = ypos - rr['y0'] + (rr['e2']-rr['rot'])*(xx-1024.5) \
                           + (rr['mag']-rr['e1'])*(ypos-2048.5)
 
         return xpos,ypos
