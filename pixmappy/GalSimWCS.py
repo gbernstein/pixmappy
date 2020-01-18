@@ -114,7 +114,7 @@ else:
                 else:
                     pmc = PixelMapCollection(yaml_file)
                     if cache:
-                        self.cache[yaml_name] = pmc
+                        self.cache[yaml_file] = pmc
                 self._tag = 'yaml_file=%r'%yaml_file
                 self._pmc = pmc
                 

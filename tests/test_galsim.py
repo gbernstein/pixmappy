@@ -11,56 +11,49 @@ def test_basic():
 
     # Check that building a GalSimWCS builds successfully and has some useful attributes.
     input_dir = 'input'
-    file_name = 'test.astro'
+    yaml_file = 'test.astro'
     exp = 375294
     ccdnum = 14
     ccdname = 'S15'
 
     t0 = time.time()
-    wcs = pixmappy.GalSimWCS(file_name, dir=input_dir, exp=exp, ccdnum=ccdnum)
+    wcs = pixmappy.GalSimWCS(yaml_file=yaml_file, dir=input_dir, exp=exp, ccdnum=ccdnum)
     t1 = time.time() - t0
     print('wcs = ',wcs)
-    print('wcs.exp = ',wcs.exp)
-    print('wcs.ccdnum = ',wcs.ccdnum)
-    print('wcs.ccdname = ',wcs.ccdname)
     print('wcs.wcs_name = ',wcs.wcs_name)
     print('time to load = ',t1)
 
-    assert wcs.exp == exp
-    assert wcs.ccdnum == ccdnum
-    assert wcs.ccdname == ccdname
     assert wcs.wcs_name == 'D%s/%s'%(exp,ccdname)
 
     t0 = time.time()
-    wcs2 = pixmappy.GalSimWCS(file_name, dir=input_dir, exp=252223, ccdnum=11)
+    wcs2 = pixmappy.GalSimWCS(yaml_file=yaml_file, dir=input_dir, exp=252223, ccdnum=11)
     t2 = time.time() - t0
     print('wcs2 = ',wcs2)
     print('time to load = ',t2)
     assert t2 < 0.1  # This should be fast since already in cache
-    assert wcs2.exp == 252223
-    assert wcs2.ccdnum == 11
+    assert wcs2.wcs_name == 'D252223/S23'
 
     # Check that invalid initializations raise the appropriate errors
-    np.testing.assert_raises(TypeError, pixmappy.GalSimWCS, file_name=file_name, pmc=wcs.pmc,
+    np.testing.assert_raises(TypeError, pixmappy.GalSimWCS, yaml_file=yaml_file, pmc=wcs.pmc,
                              wcs_name=wcs.wcs_name)
     np.testing.assert_raises(TypeError, pixmappy.GalSimWCS, wcs_name=wcs.wcs_name)
     np.testing.assert_raises(TypeError, pixmappy.GalSimWCS, pmc=wcs.pmc,
                              exp=exp, ccdnum=ccdnum, wcs_name=wcs.wcs_name)
     np.testing.assert_raises(TypeError, pixmappy.GalSimWCS, pmc=wcs.pmc)
-    np.testing.assert_raises(IOError, pixmappy.GalSimWCS, file_name=file_name)
-    np.testing.assert_raises(IOError, pixmappy.GalSimWCS, file_name=file_name,
+    np.testing.assert_raises(IOError, pixmappy.GalSimWCS, yaml_file=yaml_file)
+    np.testing.assert_raises(IOError, pixmappy.GalSimWCS, yaml_file=yaml_file,
                              wcs_name=wcs.wcs_name)
-    np.testing.assert_raises(IOError, pixmappy.GalSimWCS, file_name=file_name, dir='foo',
+    np.testing.assert_raises(IOError, pixmappy.GalSimWCS, yaml_file=yaml_file, dir='foo',
                              wcs_name=wcs.wcs_name)
-    np.testing.assert_raises(IOError, pixmappy.GalSimWCS, file_name='foo', dir=input_dir,
+    np.testing.assert_raises(IOError, pixmappy.GalSimWCS, yaml_file='foo', dir=input_dir,
                              wcs_name=wcs.wcs_name)
 
 
 def test_tpv():
     """Test that reading a tpv file is equivalent to a regular TPV FITS wcs"""
 
-    yaml_name = os.path.join('input','tpv.yaml')
-    wcs1 = pixmappy.GalSimWCS(yaml_name, wcs_name='testwcs')
+    yaml_file = os.path.join('input','tpv.yaml')
+    wcs1 = pixmappy.GalSimWCS(yaml_file=yaml_file, wcs_name='testwcs')
     fits_name = os.path.join('input','tpv.fits')
     wcs2 = galsim.FitsWCS(fits_name)
 
@@ -105,7 +98,7 @@ def test_tpv():
 def test_complex():
     """Test a complex PMC file against some reference values"""
 
-    wcs = pixmappy.GalSimWCS(os.path.join('input', 'complex_wcs.astro'), wcs_name='TEST/N1')
+    wcs = pixmappy.GalSimWCS(yaml_file=os.path.join('input', 'complex_wcs.astro'), wcs_name='TEST/N1')
     ref = np.genfromtxt(os.path.join('input', 'complex_wcs.results'), names=True)
 
     for row in ref:
@@ -141,16 +134,16 @@ def test_cache():
         # worry about messing up other tests that may be using the cache.
         cache = dict()
 
-    wcs = MockGalSimWCS('input/test.astro', wcs_name='D231890/N1')
+    wcs = MockGalSimWCS(yaml_file='input/test.astro', wcs_name='D231890/N1')
     assert len(wcs.cache) == 1
     assert 'input/test.astro' in wcs.cache
-    wcs2 = MockGalSimWCS('input/test.astro', wcs_name='D469524/S13')
+    wcs2 = MockGalSimWCS(yaml_file='input/test.astro', wcs_name='D469524/S13')
     assert len(wcs2.cache) == 1
-    wcs3 = MockGalSimWCS('input/tpv.yaml', wcs_name='testwcs')
+    wcs3 = MockGalSimWCS(yaml_file='input/tpv.yaml', wcs_name='testwcs')
     assert len(wcs3.cache) == 2
     assert 'input/test.astro' in wcs.cache
     assert 'input/tpv.yaml' in wcs.cache
-    wcs4 = MockGalSimWCS('input/complex_wcs.astro', wcs_name='TEST/N1', cache=False)
+    wcs4 = MockGalSimWCS(yaml_file='input/complex_wcs.astro', wcs_name='TEST/N1', cache=False)
     assert len(wcs3.cache) == 2
     assert 'input/complex_wcs.astro' not in wcs.cache
     wcs.clear_cache()
@@ -168,7 +161,7 @@ def test_sky():
 
     sky_level = 177
     im = galsim.Image(2048, 4096)
-    wcs = pixmappy.GalSimWCS(dir='input', file_name='test.astro', exp=375294, ccdnum=14)
+    wcs = pixmappy.GalSimWCS(dir='input', yaml_file='test.astro', exp=375294, ccdnum=14)
     print('wcs = ',wcs)
 
     pr.enable()
@@ -212,7 +205,7 @@ def test_repr():
     except ImportError:
         import pickle
 
-    wcs = pixmappy.GalSimWCS(dir='input', file_name='test.astro', exp=375294, ccdnum=14)
+    wcs = pixmappy.GalSimWCS(dir='input', yaml_file='test.astro', exp=375294, ccdnum=14)
 
     wcs_str = str(wcs)
     wcs_repr = repr(wcs)
@@ -256,7 +249,7 @@ def test_config():
             "wcs" : {
                 "type": "Pixmappy",
                 "dir": "input",
-                "file_name": "test.astro",
+                "yaml_file": "test.astro",
                 "exp":  375294,
                 "ccdnum": 14,
             }
@@ -265,7 +258,7 @@ def test_config():
 
     galsim.config.ImportModules(config)
     wcs1 = galsim.config.BuildWCS(config["image"], "wcs", config)
-    wcs2 = pixmappy.GalSimWCS(file_name='test.astro', dir='input', exp=375294, ccdnum=14)
+    wcs2 = pixmappy.GalSimWCS(yaml_file='test.astro', dir='input', exp=375294, ccdnum=14)
     print('wcs1 = ',wcs1)
     print('wcs2 = ',wcs2)
     assert wcs1 == wcs2

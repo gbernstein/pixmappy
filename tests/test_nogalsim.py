@@ -10,7 +10,7 @@ try:
 except ImportError:
     import builtins
 realimport = builtins.__import__
-def myimport(name, globals={}, locals={}, fromlist=[], level=-1):
+def myimport(name, globals={}, locals={}, fromlist=[], level=0):
     if name == 'galsim':
         raise ImportError("galsim is not available on purpose")
     return realimport(name, globals, locals, fromlist, level)
