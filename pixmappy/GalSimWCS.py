@@ -45,7 +45,9 @@ else:
         :param useDESMaps:  If `True`, use `DESMaps` to construct WCS. [default: False]
 
         :param dir:         Optional directory to prepend to all filename 
-                            arguments. [default: None]
+                            arguments. [default: None.  Note that if use_DESMaps is 
+                            True, then you can place a search path for setup files into
+                            the environment variable CAL_PATH]
 
         :param wcs_name: The name of the WCS within the
                             PixelMapCollection to use.  [default:

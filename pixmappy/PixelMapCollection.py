@@ -656,7 +656,7 @@ class PixelMapCollection(object):
     functional realization of map with that name.  Realizations are cached so that they
     are not remade every time.  The cache can be cleared to keep it from getting large.
     '''
-    def __init__(self, filename=None, use_pkl=False):
+    def __init__(self, filename=None, use_pkl=True):
         '''Create PixelMapCollection from the named YAML file
 
         If use_pkl=False, this will always read in the given `filename` YAML file.
@@ -680,14 +680,17 @@ class PixelMapCollection(object):
         else:
             pkl_filename = filename + '.pkl'
             if use_pkl and  os.path.isfile(pkl_filename):
-                with open(pkl_filename) as f:
+                with open(pkl_filename,'rb') as f:
                     self.root = pickle.load(f)
             else:
                 with open(filename) as f:
                     self.root = yaml.load(f,Loader=Loader)
                 if use_pkl:
-                    with open(pkl_filename, 'wb') as f:
-                        pickle.dump(self.root, f)
+                    try:
+                        with open(pkl_filename, 'wb') as f:
+                            pickle.dump(self.root, f)
+                    except:
+                        print("WARNING: could not pickle PixelMapCollection to",pkl_filename)
 
         # Extract the WCS specifications into their own dict
         if 'WCS' in self.root:
