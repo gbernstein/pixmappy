@@ -4,31 +4,54 @@ import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
 from . import PixelMap,PixelMapCollection, Identity, Constant, ColorTerm, Polynomial, Composite, WCS
+from . import files
 
 def findOnPath(filename, envPathName='CAL_PATH'):
     '''Look for existing file with the name <filename> using the paths
     in the colon-separated list stored in environment variable
     with name <envPathName>.  Searches current directory first.
     If filename is an absolute path, just tries that.
+
+    :param filename: full absolute path to file, or a relative path
+    :param envPathName: environment variable which optionally stores
+        a list of paths to search, in order of decreasing priority, 
+        for a relative pathname. [default=`CAL_PATH`].  Current directory
+        is always appended to the path.
+    :returns: full path to file
+    :raises: IOError if file is not found on any path.
     '''
     if os.path.isabs(filename):
         if os.path.isfile(filename):
             return filename
         else:
-            raise IOError('Absolute path <' + filename + ' is non-existent file')
+            raise IOError('Absolute path <' + filename + '> is non-existent file')
     else:
         paths = []
         if envPathName in os.environ:
             paths += os.environ[envPathName].split(':')
-        # And last resort will be current directory
-            paths.append('')
+            pathFound = True
+        else:
+            # Use the default path if none is in the environment
+            paths += files.default_cal_path.split(':')
+            pathFound = False
+        # And the current directory is always searched last
+        paths.append('')
+        
         for p in paths:
             path = os.path.join(p,filename)
             if os.path.isfile(path):
                 return path
-        raise IOError('Cannot find file ' + filename + ' in path ' + envPathName)
+
+        # If we get here we have failed
+        if pathFound:
+            raise IOError('Cannot find file ' + filename + ' in path ' + envPathName)
+        else:
+            raise IOError('Cannot find file ' + filename + ' in default path ' + files.default_cal_path)
 
 def arg2detpos(arg_in):
+    '''Return a DECam DETPOS specification given either a DETPOS string
+    or CCDNUM integer.
+    :raises: `ValueError` if input does not correspond to a DECam CCD'''
     if type(arg_in)==str:
         return arg_in
     elif type(arg_in)==int:
@@ -53,8 +76,18 @@ class DECamTweak():
     '''DECamTweak applies a 2d lookup table of astrometric corrections to
     measured pixel positions, based on gridded mean astrometric residuals
     for each CCD, and time-specific affine transforms per CCD.'''
-    def __init__(self, resids_file='y6a1.astroresids.fits',
-                     affine_file='y6a1.affine.fits'):
+    def __init__(self, resids_file=files.default_resids_file,
+                     affine_file=files.default_affine_file):
+        '''
+        DECam tweak specifications will be read from two files, searching
+        through the CAL_PATH specified by environment (or in pixmappy/data
+        directory if no CAL_PATH is given), followed by current dir.
+
+        :param resids_file: FITS file holding gridded astrometric residuals
+          for each CCD.
+        :param affine_file: FITS file giving affine shifts per CCD and epoch
+        '''
+
         # Open the file of tweaks and create spline lookup tables for each
         # device
         if resids_file is None:
@@ -89,16 +122,18 @@ class DECamTweak():
             for dp in dps:
                 self.affine[dp] = bigtab[bigtab['detpos']==dp]
         return
-    def tweak(self, detpos, mjd, xpos, ypos):
-        # return adjusted xpos and ypos arrays with values from lookuptables
+
+    def getDataFor(self, detpos, mjd):
+        """Get just the pieces of the big tables that are relevant for a single ccd and time
+        :returns: spline interpolator, affine table for this detector at this time.
+        """
         dp = arg2detpos(detpos)
-        x = np.array(xpos)
-        y = np.array(ypos)
         if self.tweaks is not None:
             if dp not in self.tweaks:
                 raise IndexError('No 2d tweaks available for detpos',dp)
-            x -= self.tweaks[dp][0](xpos,ypos,grid=False)
-            y -= self.tweaks[dp][1](xpos,ypos,grid=False)
+            spline = self.tweaks[dp]
+        else:
+            spline = None
 
         if self.affine is not None:
             if dp not in self.affine:
@@ -106,14 +141,54 @@ class DECamTweak():
             # Find the row for this MJD
             iRow = np.searchsorted(self.affine[dp]['mjd'], mjd, side='right')-1
             rr = self.affine[dp][iRow]
-            x -= rr['x0'] + (rr['mag']+rr['e1'])*(xpos-1024.5) \
+        else:
+            rr = None
+
+        return (spline, rr)
+
+    @staticmethod
+    def tweakFromData(data, xpos, ypos):
+        """Tweak using the data for a particular detpos and mjd.
+        :param data: the spline,tweak tuple returned by `getDataFor()`
+        :param xpos,ypos: input pixel position arrays 
+        :returns: x,y output (tweaked) pixel positions.
+        """
+        spline, rr = data
+
+        if spline is not None:
+            xpos, ypos = xpos-spline[0](xpos,ypos,grid=False), \
+                         ypos-spline[1](xpos,ypos,grid=False)
+
+        if rr is not None:
+            xx = np.copy(xpos) # temporary copy
+            xpos = xpos - rr['x0'] + (rr['mag']+rr['e1'])*(xpos-1024.5) \
                           + (rr['e2']+rr['rot'])*(ypos-2048.5)
-            y -= rr['y0'] + (rr['e2']-rr['rot'])*(xpos-1024.5) \
+            ypos = ypos - rr['y0'] + (rr['e2']-rr['rot'])*(xx-1024.5) \
                           + (rr['mag']-rr['e1'])*(ypos-2048.5)
 
-        return x,y
+        return xpos,ypos
+
+    def tweak(self, detpos, mjd, xpos, ypos):
+        '''Apply tweak to data
+        :param detpos: which CCD the positions are from
+        :param mjd: MJD of exposure 
+        :param xpos,ypos: input pixel positions
+        :returns: x,y output (tweaked) pixel positions
+        '''
+        return self.tweakFromData(self.getDataFor(detpos, mjd), xpos, ypos)
+
+
     def tweakTable(self, tab, detpos, mjd, xkey='xpix', ykey='ypix'):
-        # Tweak the two columns of the table giving pixel positions of objects
+        ''' Tweak the contents of the two columns of the table 
+        giving pixel positions of objects.
+        :param tab: the table holding pixel coordinates
+        :param detpos: CCD of the data
+        :param mjd: MJD of the exposure
+        :param xkey, ykey: column names for the pixel positions
+             [default:'xpix','ypix']
+        :returns: nothing.  Pixel positions are tweaked in-place in
+             the table.
+        '''
         xx, yy = self.tweak(detpos, mjd, tab[xkey],tab[ykey])
         tab[xkey] = xx
         tab[ykey] = yy
@@ -135,15 +210,23 @@ class Tweak(PixelMap):
     affineFile = None
     
     def __init__(self, name, **kwargs):
+        '''PixelMap that implements DECam astrometric tweaks and affine shifts.
+        :param name: name to be given to this `PixelMap`
+        :param Detpos: CCD that positions are on
+        :param MJD: time of exposure that positions are from
+        :param ResidsFile: name of FITS file holding DECam tweaks, if any
+        :param AffineFile: name of FITS file holding DECam CCD shifts, if any
+        '''
         super(Tweak,self).__init__(name)
         
         if self.tweaker is None:
             # Need to read in a tweak file.
+            # Note: Setting class variables requires using class name, not self.
             if 'ResidsFile' in kwargs:
-                self.residsFile = kwargs['ResidsFile']
+                Tweak.residsFile = kwargs['ResidsFile']
             if 'AffineFile' in kwargs:
-                self.affineFile = kwargs['AffineFile']
-            self.tweaker = DECamTweak(resids_file = self.residsFile, affine_file = self.affineFile)
+                Tweak.affineFile = kwargs['AffineFile']
+            Tweak.tweaker = DECamTweak(resids_file = self.residsFile, affine_file = self.affineFile)
         else:
             # Check that any requested files agree with the one we have loaded already
             if ('residsFile' in kwargs and residsFile != kwargs['residsFile']) or \
@@ -155,49 +238,50 @@ class Tweak(PixelMap):
             raise ValueError('Missing Detpos or MJD in Tweak PixelMap')
         self.dp = kwargs['Detpos']
         self.mjd = kwargs['MJD']
+        self.tweak_data = self.tweaker.getDataFor(self.dp, self.mjd)
 
     def __call__(self, x, y, c=None):
-        return self.tweaker.tweak(self.dp, self.mjd, x, y)
+        '''Apply tweaks to DECam pixel positions
+        :param x,y: pixel coordinate arrays or scalars
+        :param c:   color of source(s).  Not used.
+        :returns: x, y tweaked pixel positions.
+        '''
+        return DECamTweak.tweakFromData(self.tweak_data, x, y)
 
-    
+
 class DESMaps(PixelMapCollection):
     '''DESMaps is an extension of PixelMapCollection that allows the
     user to build WCS/PixelMaps for DES survey exposures by extracting
-    exposure-specific information from custom FITS tables or the DESDM
-    database.  The user must have a local copy of the YAML file
+    exposure-specific information from custom FITS tables.
+    The user must also have a local copy of the YAML file
     specifying the PixelMaps for the "guts" of astrometric solution -
     the time-independent specifications of camera distortions, and the
     small tweaks for different observing epochs, as well as local
     copies of the templates for the tree-ring and edge distortions.
-    The CAL_PATH will be used to search for these, as for
-    PixelMapCollection.  
-
-    The user must also have access either to the
-    DESDM database (by providing an easyaccess connection) or to a
-    FITS file containing the tabulated astrometric info for each
-    exposure.
+    Environment variable CAL_PATH gives the path to search for these
+    files; this module's data directory will be searched if no CAL_PATH
+    is in environment.  Current directory is searched last.
     '''
     exposureName = 'D{:06d}'  # String to format to get exposure name
     wcsName = 'D{:06d}/{:s}'         # String to format to get WCS name for expo/detpos pair
     basemapName = 'D{:06d}/{:s}/base' # String to format for PixelMap name
     tweakName = 'D{:06d}/{:s}/twk'  # String to create Tweak map name
     
-    def __init__(self, conn=None,
-                     guts_file='y6a1.guts.astro',
-                     exposure_file='y6a1.exposureinfo.fits',
-                     resids_file='y6a1.astroresids.fits',
-                     affine_file='y6a1.affine.fits',
-                     **kwargs):
+    def __init__(self,
+                 guts_file=files.default_guts_file,
+                 exposure_file=files.default_exposure_file,
+                 resids_file=files.default_resids_file,
+                 affine_file=files.default_affine_file,
+                 **kwargs):
         '''Create PixelMapCollection that can create new entries for specified DES
         exposure number / CCD combinations using stored astrometric solutions.  These
-        will be created using information in DESDM database if a connection is given.
-        Otherwise these will be sought in two FITS binary tables. 
+        will be sought in local files.  Defaults for these file names are those from
+        Y6A1 astrometry release.  An argument of `None` indicates that the file is absent.
 
-        guts_file: locally available YAML file with time-invariant portions of solution.
-        conn:  easyaccess connection to dessci database.  
-        exposure_file:  FITS file holding binary table of DES per-exposure info
-        resids_file: FITS file holding 2d residual adjustment maps for DECam devices (None to skip)
-        affine_file: FITS file holding time-dependent DECam CCD affine tweaks (None to skip)
+        :param guts_file:   locally available YAML file with time-invariant portions of solution.
+        :param exposure_file: FITS file holding binary table of DES per-exposure info
+        :param resids_file: FITS file holding 2d residual adjustment maps for DECam devices (None to skip)
+        :param affine_file: FITS file holding time-dependent DECam CCD affine tweaks (None to skip)
 
         Other kwargs are passed to PixelMapCollection
         '''
@@ -209,18 +293,19 @@ class DESMaps(PixelMapCollection):
         path = findOnPath(guts_file)
         super(DESMaps, self).__init__(filename=path, **kwargs)
 
-        self.conn = conn
-        if self.conn is None:
-            # Read in the tabular information from FITS files
-            path = findOnPath(exposure_file)
-            self.exptab = pf.getdata(path,1)
+        # Read in the tabular information from FITS files
+        path = findOnPath(exposure_file)
+        self.exptab = pf.getdata(path,1)
         self.residsFile = resids_file
         self.affineFile = affine_file
         return
 
     def getDESMap(self, expnum, detpos):
         '''Acquire PixelMap for specified exposure number / CCD combination.
-        detpos can be either string DETPOS or integer CCDNUM.
+
+        :param expnum:  exposure number for the desired `PixelMap`
+        :param detpos:  CCD number or detpos string for desired `PixelMap`
+        :returns: A valid `PixelMap` for this exposure/CCD
         '''
         detpos = arg2detpos(detpos)
         name = self.basemapName.format(expnum,detpos)
@@ -230,8 +315,12 @@ class DESMaps(PixelMapCollection):
 
     def getDESWCS(self, expnum, detpos):
         '''Acquire WCS for specified exposure number / CCD combination
-        detpos can be either string DETPOS or integer CCDNUM.
+
+        :param expnum:  exposure number for the desired `WCS`
+        :param detpos:  CCD number or detpos string for desired `WCS`
+        :returns: A valid `WCS` for this exposure/CCD
         '''
+
         detpos = arg2detpos(detpos)
         name = self.wcsName.format(expnum,detpos)
         if not self.hasWCS(name):
@@ -245,6 +334,12 @@ class DESMaps(PixelMapCollection):
         covarianceWarning()  to check for potentially invalid matrix.
         A circular error of defaultError radius is returned if
         there is no valid matrix for this expnum.
+
+        :param expnum:  exposure number for desired atmospheric turbulence
+        :param defaultError: turbulence error (in mas) to assign if a value
+               is not available in the file. [default: 10 mas]
+        :returns: A 2x2 covariance matrix for astrometric turbulence in
+               this exposure. (units of mas^2)
         '''
         # Find the row of exposure table corresponding to this expnum 
         #(by default, searchsorted returns matching row if one is equal)
@@ -264,23 +359,22 @@ class DESMaps(PixelMapCollection):
     def covarianceWarning(self,expnum):
         '''Returns True if the estimated covariance matrix for expnum
         is suspicious because of negative or too-small eigenvalues.
+
+        :param expnum:  exposure number for desired atmospheric turbulence
         '''
         # Find the row of exposure table corresponding to this expnum 
         exp_row = np.searchsorted(self.exptab['expnum'],expnum)
         return self.exptab['cov'][exp_row][0] <= 0
 
     def _acquireWCS(self, expnum, detpos):
-        '''Acquire info on exposure/detpos combo from database/files and 
+        '''Acquire info on exposure/detpos combo from files and 
         add it to the PixelMapCollection.
         '''
-
-        if self.conn is not None:
-            raise NotImplementedError('Database access to astrometry solutions not ready yet')
 
         # Find the row of exposure table corresponding to this expnum 
         exp_row = np.searchsorted(self.exptab['expnum'],expnum)
         if exp_row > len(self.exptab) or self.exptab['expnum'][exp_row]!=expnum:
-            raise ValueError('No  solution found for expnum {:06d}'.format(expnum))
+            raise ValueError('No solution found for expnum {:06d}'.format(expnum))
             
         # Make a dictionary that we'll add to the PixelMapCollection
         pixmaps = {}

@@ -1,0 +1,38 @@
+
+# This is a massively pared down version of the wrongwcs.yaml example in galsim_extra,
+# but modified to use the Y6 pixmappy astro files.  This isn't particularly interesting
+# as a test of the "wrong wcs" anymore.  But it does suffice to make sure that the Pixmappy
+# wcs type is able to run properly.
+
+modules:
+    - galsim_extra
+    - pixmappy
+
+psf:
+    type: Moffat
+    beta: 2.5
+    fwhm: 0.9
+
+image:
+    type: WrongWCS
+    random_seed: 8675309
+    nobjects: 10
+
+    xsize: 2048
+    ysize: 4096
+
+    wcs:
+        type: Pixmappy
+        use_DESMaps: True
+        exp: 258864
+        ccdnum: 14
+
+    output_wcs:
+        type: PixelScale
+        scale: 0.263
+
+output:
+    type: Fits
+    nfiles: 1
+    dir: output
+    file_name: "wrong_wcs.fits.fz"
