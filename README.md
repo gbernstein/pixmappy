@@ -14,9 +14,12 @@ The type of mapping that can be expressed is very flexible, and `PixelMaps` can 
 The `DESMaps` class derives from `PixelMapCollection` and is specialized to read astrometric solutions derived for all of the useful exposures in the Y6A1 internal data release.  Upon creation of an instance of this class, some YAML and FITS files containing WCS parameters for all these exposures are read.  The user can then request production of a `WCS` appropriate to any combination of exposure number and focal-plane detector.  Quick instructions for doing so are as follows:
 
 * Acquire this repository and run `python setup.py install`
-* Acquire and unpack the `y6a1.astrometry.tar.gz` file containing the solution information.  If you are a DES member you can find it at https://cdcvs.fnal.gov/redmine/projects/des-y6/wiki/Y6A1_Astrometric_Solutions
-* Make sure that the environment variable `CAL_PATH` contains the
-  directory into which these data were placed (xxx/Y6A1_ASTROMETRY).
+* The Y6A1 astrometric solutions are included in the data directory of this repo
+  and will be accessed by default by `DESMaps` (If you are a DES member you can 
+  also find these files at https://cdcvs.fnal.gov/redmine/projects/des-y6/wiki/Y6A1_Astrometric_Solutions).
+* If you are using some other set of solutions, 
+  make sure that the environment variable `CAL_PATH` contains the
+  directory into which these data were placed (_e.g._ /xxx/ALTERNATE_ASTROMETRY).
 * Run your python code!
 * Note that the color argument `c` is assumed to be _g-i_ for the DES
   data.  A value is required, since the solutions include differential
@@ -25,6 +28,19 @@ The `DESMaps` class derives from `PixelMapCollection` and is specialized to read
   your true color and want something that is not crazy.
 * If you request a solution for an exposure/CCD pair that is not in
   the solution set, a `ValueError` exception will be raised.
+
+### Use in GalSim
+
+The `GalSimWCS` class allows `pixmappy` astrometric solutions to be used 
+within `GalSim`. `GalSimWCS` will read a solution any one of three ways:
+* Giving a `PixelMapCollection` and the name of a WCS within that collection.
+* Giving a `yaml_file` which encodes a `PixelMapCollection`, plus the name of a WCS
+  within that collection.
+* Specifying `use_DESMaps=True`, which triggers use of the `DESMaps` class 
+  and file-access methods described above, plus the exposure number and ccd number of
+  the desired astrometric map.  Choosing this option will by default
+  access the Y6A1_ASTROMETRY solutions included in the repo, and is the simplest
+  way to use the class.  
 
 ### Astrometric error estimation
 
