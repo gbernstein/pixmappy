@@ -29,6 +29,19 @@ The `DESMaps` class derives from `PixelMapCollection` and is specialized to read
 * If you request a solution for an exposure/CCD pair that is not in
   the solution set, a `ValueError` exception will be raised.
 
+### Use in GalSim
+
+The `GalSimWCS` class allows `pixmappy` astrometric solutions to be used 
+within `GalSim`. `GalSimWCS` will read a solution any one of three ways:
+* Giving a `PixelMapCollection` and the name of a WCS within that collection.
+* Giving a `yaml_file` which encodes a `PixelMapCollection`, plus the name of a WCS
+  within that collection.
+* Specifying `use_DESMaps=True`, which triggers use of the `DESMaps` class 
+  and file-access methods described above, plus the exposure number and ccd number of
+  the desired astrometric map.  Choosing this option will by default
+  access the Y6A1_ASTROMETRY solutions included in the repo, and is the simplest
+  way to use the class.  
+
 ### Astrometric error estimation
 
 The astrometric solutions above reduce uncertainties in the
