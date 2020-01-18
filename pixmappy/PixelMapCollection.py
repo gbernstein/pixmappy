@@ -653,7 +653,7 @@ class PixelMapCollection(object):
     functional realization of map with that name.  Realizations are cached so that they
     are not remade every time.  The cache can be cleared to keep it from getting large.
     '''
-<<<<<<< HEAD
+
     def __init__(self, filename=None, use_json=True):
         '''Create PixelMapCollection from the named YAML file
 
@@ -684,7 +684,7 @@ class PixelMapCollection(object):
                     self.root = yaml.load(f,Loader=Loader)
                 if use_json:
                     try:
-                        with open(json_filename, 'wb') as f:
+                        with open(json_filename, 'w') as f:
                             json.dump(self.root, f)
                     except:
                         print("WARNING: could not save PixelMapCollection as",json_filename)
