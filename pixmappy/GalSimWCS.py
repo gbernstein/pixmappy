@@ -25,14 +25,14 @@ else:
           (supplied by `yaml_file`), or
         * The `DESMaps` class, which accesses files in the format of
           the DES Y6A1_ASTROMETRY release, which one selects via
-          `useDESMaps=True`.  In this case one can supply names for
+          `use_DESMaps=True`.  In this case one can supply names for
           the `exposure_file,guts_file,resids_file,affine_file` that
           the `DESMaps` needs, or any of these will use Y6A1 default
           names if they are supplied as `None` (This is default
           behavior).
 
         Exactly one of these must be true: `pmc is not None`;
-        `yaml_file is not None`; `useDESMaps`.
+        `yaml_file is not None`; `use_DESMaps`.
 
         The WCS within the collection is selected by name.  One can
         either specify the name directly with `wcs_name`; or a name
@@ -42,7 +42,7 @@ else:
         :param pmc:         An existing pixmappy.PixelMapCollection instance [default: None]
         :param yaml_file: The yaml file with the PixelMapCollection
                             description. [default: None]
-        :param useDESMaps:  If `True`, use `DESMaps` to construct WCS. [default: False]
+        :param use_DESMaps:  If `True`, use `DESMaps` to construct WCS. [default: False]
 
         :param dir:         Optional directory to prepend to all filename 
                             arguments. [default: None.  Note that if use_DESMaps is 
@@ -59,7 +59,7 @@ else:
 
         :param exposure_file: FITS file holding binary table of DES
                             per-exposure info for DESMaps.  [default:
-                            None; if `useDESMaps` then the file in the
+                            None; if `use_DESMaps` then the file in the
                             Y6A1_ASTRONOMY release will be used in
                             this default case.]  
         :param guts_file:   YAML file holding static DECam distortions
