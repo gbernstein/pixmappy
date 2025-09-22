@@ -22,7 +22,6 @@ for these template files.
 
 import numpy as np
 import astropy.coordinates as co
-import future
 import yaml
 from scipy.optimize import root
 import os
@@ -31,12 +30,7 @@ import json
 
 from . import files
 
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
-
-class PixelMap(object):
+class PixelMap:
     ''' Base class for transformations from one 2d system ("pixel") to another ("world").
     Each derived class must implement __call__ to execute this transform on array of
     shape (2) or (N,2).  This base class implements some routines such as taking local derivatives
@@ -76,7 +70,7 @@ class PixelMap(object):
         :param tol: tolerance for termination of solution (in pixel space??).  [default: 1e-4]
          '''
         # Need to call the solver row by row, will be slow.
-        class resid(object):
+        class resid:
             ''' Callable giving deviation of output from target
             '''
             def __init__(self, pmap, targetx, targety, c=None):
@@ -370,7 +364,7 @@ class Template(PixelMap):
             if path is None:
                 raise IOError('Can not find template library file ' + fname)
             with open(path) as f:
-                self.libraries[fname] = yaml.load(f,Loader=Loader)
+                self.libraries[fname] = yaml.load(f)
 
         # Now find the desired template
         if kwargs['LowTable'] not in self.libraries[fname]:
@@ -647,7 +641,7 @@ class WCS(PixelMap):
             yw /= self.scale
         return xw, yw
 
-class PixelMapCollection(object):
+class PixelMapCollection:
     '''Class that holds a library of PixelMap/WCS specifications deserialized from
     a YAML file.  One can then request any PixelMap or WCS by name and be given a
     functional realization of map with that name.  Realizations are cached so that they
@@ -681,7 +675,7 @@ class PixelMapCollection(object):
                     self.root = json.load(f)
             else:
                 with open(filename) as f:
-                    self.root = yaml.load(f,Loader=Loader)
+                    self.root = yaml.load(f)
                 if use_json:
                     try:
                         with open(json_filename, 'w') as f:
@@ -814,7 +808,7 @@ class PixelMapCollection(object):
 ### Projections: we have just two.
 ########################################################
 
-class ICRS(object):
+class ICRS:
     ''' Class giving the (trivial) projection from ICRS to ICRS coordinates, i.e.
     "world" coordinates are just the ICRS RA and Dec in degrees.
     '''
@@ -831,7 +825,7 @@ class ICRS(object):
     def toXY(self, ra, dec):
         return ra, dec
     
-class Gnomonic(object):
+class Gnomonic:
     ''' Class representing a gnomonic projection about some point on
     the sky.  Can be used to go between xi,eta coordinates and ra,dec.
     All xy units are assumed to be in degrees as are the ra, dec, and PA of
