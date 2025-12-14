@@ -2,13 +2,13 @@
 try:
     import galsim
 except ImportError:
-    class GalSimWCS(object):
+    class GalSimWCS:
         def __init__(self, *args, **kwargs):
             raise NotImplementedError(
                 'Unable to import galsim. The GalSimWCS interface is not available.')
 else:
 
-    from .decaminfo import DECamInfo
+    from .decaminfo import ccdnum2detpos
     from .PixelMapCollection import PixelMapCollection
     from .DESMaps import DESMaps
     import os
@@ -90,7 +90,6 @@ else:
                                {"yaml_file" : str, "use_DESMaps":bool}]
         _takes_rng = False
         
-        info = DECamInfo()
         cache = dict()
 
         def __init__(self, pmc=None, yaml_file=None, use_DESMaps=False, dir=None,
@@ -169,7 +168,7 @@ else:
             if use_DESMaps:
                 if exp is None or ccdnum is None:
                     raise TypeError("DESMaps require exp,ccdnum")
-                ccdname = self.info.ccddict[ccdnum]
+                ccdname = ccdnum2detpos(ccdnum)
                 self._wcs_name = 'D%s/%s'%(exp, ccdname)  #Used by __eq__
                 self._wcs = pmc.getDESWCS(exp, ccdname)
                 self._tag = self._tag + ', exp=%r, ccdnum=%r'%(exp,ccdnum)
@@ -178,7 +177,7 @@ else:
                 if wcs_name is None:
                     if exp is None or ccdnum is None:
                         raise TypeError("Must provide either wcs_name or (exp,ccdnum)")
-                    ccdname = self.info.ccddict[ccdnum]
+                    ccdname = ccdnum2detpos(ccdnum)
                     self._wcs_name = 'D%s/%s'%(exp, ccdname)
                 elif exp is not None or ccdnum is not None:
                     raise TypeError("Cannot provide both wcs_name and (exp,ccdnum)")

@@ -364,7 +364,7 @@ class Template(PixelMap):
             if path is None:
                 raise IOError('Can not find template library file ' + fname)
             with open(path) as f:
-                self.libraries[fname] = yaml.load(f)
+                self.libraries[fname] = yaml.safe_load(f)
 
         # Now find the desired template
         if kwargs['LowTable'] not in self.libraries[fname]:
@@ -675,7 +675,7 @@ class PixelMapCollection:
                     self.root = json.load(f)
             else:
                 with open(filename) as f:
-                    self.root = yaml.load(f)
+                    self.root = yaml.safe_load(f)
                 if use_json:
                     try:
                         with open(json_filename, 'w') as f:

@@ -10,4 +10,4 @@ default_resids_file='y6a1.astroresids.fits'
 default_affine_file='y6a1.affine.fits'
 
 # Default path will be data directory given in pyproject
-default_cal_path = data_dir
+default_cal_path = str(data_dir)
