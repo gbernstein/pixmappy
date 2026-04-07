@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PixMapPy"
-version = "1.1.0"
+version = "1.2.0"
 authors = [{name = "Gary Bernstein", email = "garyb@upenn.edu"}]
 description = "Python module for arbitrary mappings from pixels to sky coordinate"
 readme = "README.md"
