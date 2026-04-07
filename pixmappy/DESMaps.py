@@ -5,6 +5,7 @@ from scipy.interpolate import RectBivariateSpline
 
 from . import PixelMap,PixelMapCollection, Identity, Constant, ColorTerm, Polynomial, Composite, WCS
 from . import files
+from .decaminfo import ccdnum2detpos, detpos2ccdnum
 
 def findOnPath(filename, envPathName='CAL_PATH'):
     '''Look for existing file with the name <filename> using the paths

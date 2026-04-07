@@ -1,0 +1,23 @@
+# pyproject.toml
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PixMapPy"
+version = "1.2.0"
+authors = [{name = "Gary Bernstein", email = "garyb@upenn.edu"}]
+description = "Python module for arbitrary mappings from pixels to sky coordinate"
+readme = "README.md"
+requires-python = ">=3.5"
+dependencies = ['numpy', 'astropy', 'scipy', 'pyyaml']
+license = "BSD-2-Clause"
+license-files = ['LICENSE','Piff-LICENSE']
+
+[project.urls]
+source = "https://github.com/gbernstein/pixmappy"
+# download = "https://github.com/gbernstein/pixmappy/releases/tag/v%s.zip"%pixmappy_version
+
+
+[tool.setuptools.package-data]
+"pixmappy" = ["data/*"]
