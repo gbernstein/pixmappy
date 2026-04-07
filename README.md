@@ -7,27 +7,56 @@ A `WCS` is a `PixelMap` that additionally specifies a (de)projection from the wo
 
 The YAML deserialization is the slow part, using `PyYAML`.  `PixelMapCollection` will first try to use the C-based YAML loader, which requires libyaml to be available.  If this fails it falls back to the 20x slower all-Python loader.
 
-The type of mapping that can be expressed is very flexible, and `PixelMaps` can be compounded into chains of tranformations.  See the `gbdes` source files for more documentation on the types of transformations available and their YAML encodings.  One type of map is a `TemplateMap`, which uses a lookup table stored in some other YAML file.  Two such template files used for DECam solutions are part of this repository and installed by setup.py.  The setup area will be searched automatically for requested template files.  Additional paths to search can be specified by the `CAL_PATH` environment variable, using the usual colon-separated list format.
+The type of mapping that can be expressed is very flexible, and `PixelMaps` can be compounded into chains of tranformations.  See the `gbdes` source files for more documentation on the types of transformations available and their YAML encodings.  One type of map is a `TemplateMap`, which uses a lookup table stored in some other YAML file.  Various template files required for DECam solutions are part of this repository.  The setup area will be searched automatically for requested template files.  Additional paths to search can be specified by the `CAL_PATH` environment variable, using the usual colon-separated list format.
 
-## DES Astrometric Solutions
+## DELVE Astrometric solutions
+As of v1.2.0, there is a `DelveMap` class (derived from `PixelMapCollection` that will return a `WCS` or `PixelMap` instance for any combination of DECam exposure number and CCD identifier. The repository includes the relevant calibration files, which will automatically be found by the code.  _v1.2.0 does not yet include some final details of the DECam solutions nor cover all the exposures - these will be added in later versions._ 
 
-The `DESMaps` class derives from `PixelMapCollection` and is specialized to read astrometric solutions derived for all of the useful exposures in the Y6A1 internal data release.  Upon creation of an instance of this class, some YAML and FITS files containing WCS parameters for all these exposures are read.  The user can then request production of a `WCS` appropriate to any combination of exposure number and focal-plane detector.  Quick instructions for doing so are as follows:
+The basic steps to using these solutions are:
+* Acquire this repository and run `pip install .` from the top level directory of the repo, with your target Python environment activated.
+* In your code, have the following steps:
+  ```python
+  import pixmappy as pm
+  dmc = pm.DelveMaps()
+  mywcs = dmc.getDelveWCS(442144, 23)  #Your expnum, ccdnum in the arguments
+  ra, dec = mywcs.toSky( x, y, color)  # Transform pixel coord to sky coords
 
-* Acquire this repository and run `python setup.py install`
-* The Y6A1 astrometric solutions are included in the data directory of this repo
-  and will be accessed by default by `DESMaps` (If you are a DES member you can 
-  also find these files at https://cdcvs.fnal.gov/redmine/projects/des-y6/wiki/Y6A1_Astrometric_Solutions).
-* If you are using some other set of solutions, 
-  make sure that the environment variable `CAL_PATH` contains the
-  directory into which these data were placed (_e.g._ /xxx/ALTERNATE_ASTROMETRY).
-* Run your python code!
-* Note that the color argument `c` is assumed to be _g-i_ for the DES
+  # Or you can transform to the local gnomonic projection
+  mymap = dmc.getDelveMap(442144, 23)
+  u,v = mymap(x,y,c)
+  ```
+* Note that the color argument `c` is assumed to be _g-i_ for the DECam
   data.  A value is required, since the solutions include differential
-  chromatic refraction in the atmosphere and (for _gr_ bands) lateral
+  chromatic refraction in the atmosphere and lateral
   color in the corrector.  Use a value of `c=0.61` if you don't know
   your true color and want something that is not crazy.
 * If you request a solution for an exposure/CCD pair that is not in
   the solution set, a `ValueError` exception will be raised.
+
+### Additional exposure information
+The file `delveExposures.hdf5` included the repo's `data/` directory includes additional information about each exposure that could be of use.  This table can be read as an `astropy.table.Table` and includes the following columns:
+
+* __expnum__: DECam exposure number
+* __band__: Filter used, one of _griz_.
+* __mjdmid__: MJD of the temporal midpoint of the exposure
+* __exptime__: exposure time, in seconds
+* __t_eff__: "effective exposure time," giving fraction of the actual exposure time that would have yielded the same point-source depth under some nominal, nearly-ideal conditions of seeing, background, and clouds.
+* __nite__: Date on the start of the night of the exposure, in format like 20121102.
+* __pole__: The ICRS (RA, Dec) (in degrees) of the approximate pointing axis of the exposure.  This is also the pole of the gnomonic projection used for this exposure.
+* __hpix__: The healpixel (NSIDE=32, RING ordering) containing the pole of the exposure.
+* __airmass, ha__: The airmass and hour angle (in degrees) of the exposure.
+* __parallactic__: Parallactic angle, in _radians_ from North through East.
+* __obsicrs__: The Cartesian coordinates of the observatory, in barycentric ICRS coordinates, at the midpoint of the exposure (in AU).
+* __nCCD30__: Number of CCDs that contain >=30 matches to Gaia stars.  Numbers below 60 indicate problems (e.g. bright stars) with some CCDs.
+* __5p2uv__: This is a 2x5 matrix that maps a Gaia 5-parameter solution (u0,v0,pm_ra,pm_dec,parallax) into the two positions (u,v) that the star should have during this exposure.  The u's and v's are the RA and DEC projected around the __pole__ of the exposure, in degrees.
+  
+
+
+## DES Astrometric Solutions
+
+The current versions retain the `DESMaps` class (derived from `PixelMapCollection`) that instantiates the astrometric solutions derived for the DES Y6A1 internal data release.  It works the same way as `DelveMaps` but its solutions should be superceded by `DelveMaps`.
+
+The two capabilities listed below are implemented for `DESMaps` but not yet implemented or tested for `DelveMaps`:
 
 ### Use in GalSim
 
@@ -40,7 +69,9 @@ within `GalSim`. `GalSimWCS` will read a solution any one of three ways:
   and file-access methods described above, plus the exposure number and ccd number of
   the desired astrometric map.  Choosing this option will by default
   access the Y6A1_ASTROMETRY solutions included in the repo, and is the simplest
-  way to use the class.  
+  way to use the class.
+
+  
 
 ### Astrometric error estimation
 
