@@ -16,7 +16,24 @@
 .. module:: decaminfo
 """
 
+from astropy.time import Time
 import numpy as np
+from scipy.interpolate import interp1d
+
+DEGREE = np.pi / 180.   # Degree, in radians
+REF_COLOR = 0.61        # Reference g-i color for color terms
+
+DECAM_MJD0 = Time('2012-11-01').mjd  # A convenient zeropoint for DECam ops
+
+def nite2day(n):
+    '''Convert NITE notation to the DECam day count'''
+    return int(Time('{:04d}-{:02d}-{:02d}'.format(n//10000, (n//100)%100, n%100)).mjd - DECAM_MJD0)
+
+def day2nite(d):
+    '''Convert DECam day count to NITE'''
+    ymd = Time(d+DECAM_MJD0, format='mjd').ymdhms
+    return int(ymd[0]*10000 + ymd[1]*100 + ymd[2])
+
 
 # Translation from CCDNUM to DETPOS for DECam:
 ccdnum2detpos = {1:'S29',  2:'S30',  3:'S31',  4:'S25',  5:'S26',  6:'S27',
@@ -33,10 +50,37 @@ ccdnum2detpos = {1:'S29',  2:'S30',  3:'S31',  4:'S25',  5:'S26',  6:'S27',
 #...and inverse
 detpos2ccdnum = {v:k for k,v in ccdnum2detpos.items()}
 
+def arg2detpos(arg_in):
+    '''Return a DECam DETPOS specification given either a DETPOS string
+    or CCDNUM integer.
+    :raises: `ValueError` if input does not correspond to a DECam CCD'''
+    if type(arg_in)==str:
+        return arg_in
+    elif type(arg_in)==int:
+        ccdnum2detpos = {1:'S29',  2:'S30',  3:'S31',  4:'S25',  5:'S26',  6:'S27',
+                 7:'S28',  8:'S20',  9:'S21', 10:'S22', 11:'S23', 12:'S24',
+                13:'S14', 14:'S15', 15:'S16', 16:'S17', 17:'S18', 18:'S19',
+                19:'S8',  20:'S9',  21:'S10', 22:'S11', 23:'S12', 24:'S13',
+                25:'S1',  26:'S2',  27:'S3',  28:'S4',  29:'S5',  30:'S6',
+                31:'S7',  32:'N1',  33:'N2',  34:'N3',  35:'N4',  36:'N5',
+                37:'N6',  38:'N7',  39:'N8',  40:'N9', 41:'N10', 42:'N11',
+                43:'N12', 44:'N13', 45:'N14', 46:'N15', 47:'N16', 48:'N17',
+                49:'N18', 50:'N19', 51:'N20', 52:'N21', 53:'N22', 54:'N23',
+                55:'N24', 56:'N25', 57:'N26', 58:'N27', 59:'N28', 60:'N29',
+                61:'N30', 62:'N31'}
+        if arg_in not in ccdnum2detpos:
+            raise ValueError('Invalid DECam CCD number {:d}'.format(arg_in))
+        return ccdnum2detpos[arg_in]
+    else:
+        raise ValueError('DECam CCD number must be str or int')
+
+
 # Dictionary of valid pixels, with 0-based indexing and
 # "end" pixel not included.
 xyBounds = {'xstart':25,'xend':2023, 'ystart':15, 'yend':4081}
 
+# Approximate corners of CCDs in gnomonic projection about axis (degrees)
+# (u1,u2,v1,v2)
 uvBounds =  {'N1': (-1.0811, -0.782681, -0.157306, -0.00750506),
              'N2': (-0.771362, -0.472493, -0.157385, -0.00749848), 
              'N3': (-0.461205, -0.161464, -0.157448, -0.00749265), 
@@ -99,79 +143,66 @@ uvBounds =  {'N1': (-1.0811, -0.782681, -0.157306, -0.00750506),
              'S30': (-0.150043, 0.149464, 0.829007, 0.978648), 
              'S31': (0.160898, 0.460111, 0.82932, 0.978804) }
 
-''' Class for determining the calibration epoch that should be used for
-an exposure taken at a given MJD.
-'''
-from astropy.time import Time
-import numpy as np
-
-def mjdOfEpoch(epoch):
-    # Return mjd of date specified by 8-character epoch
-    return Time(epoch[:4]+'-'+epoch[4:6]+'-'+epoch[6:8], 
-                format='fits',scale='utc').mjd
-class EpochFinder:
-    '''Function class which returns the star flat epoch nearest to specifed input MJD
-    that does not have an intervening camera event.  Returns '00000000' if no star flats
-    occur in the same interval between events.
-    '''
-    # Epochs of star flats and of camera "events" when calibration changes.
-    sfEpochs = ['20121120','20121223','20130221','20130829','20131115','20140118',
-                '20140807','20141105','20150204','20150926','20160209',
-                '20160223','20160816','20161117','20170111','20170214',
-                '20170411','20170814','20170906','20171129','20180103',
-                '20180327','20180829','20181123','20181218','20190116']
-        # Skipping  20181025, bad registration
-        # Also note only ugri are usable 20180103, no zY.
-    warmups = ['20121230','20130512','20130722','20131015','20140512',
-               '20141201',
-               # remove, see below: '20150625','20150725',
-               '20150809',
-               # remove '20150825',
-               '20160219','20161013',
-               # remove '20161214',
-               '20161226','20170714',
-               # remove '20170803', # This was changing r filter positions
-               '20170903','20171103','20171215','20180318', #rizY filters moved
-               '20180619', #Y filter moved 20180718, g on 20180814
-               '20181118']
-    # Missing a SF set between 20121226 and 20121230; -> remove former cooldown
-    # 20150625,0725,0809,0825;  -> remove first 2, last one?
-    # 20161214 and 1226;  -> omit first one
-    # 20170714 and 0803;  -> omit latter
-    # 20171215 and 20180314 (missing zY only in former) and 20180318 ->drop 0314 as last is
-    # optics work; will need to kludge a 20180103 solution for zY from 20171129,
-    # which is preferable to going to 20180327 star flat because filter/shutter service
-    # just before the latter (which also is missing Y band)
-    
-    cooldowns=['20151126']  # Omitting '20121226','20180314'
-    nogood = '00000000'
+class ColorConverter:
     def __init__(self):
-        # Place the epochs at ~midday Chile time of their stated date.
-        self.sfMjds = np.array([mjdOfEpoch(e) for e in self.sfEpochs]) + 0.7
-        self.eventMjds = np.array([mjdOfEpoch(e) for e in self.warmups + self.cooldowns]) + 0.7
-        self.eventMjds.sort() 
-        return
-    def __call__(self, mjd):
-        if mjd is None:
-            return self.nogood
-        # which events are before, after our mjd?
-        before = mjd >= self.eventMjds
-        # Mark which star flat MJDs are in same interval between events
-        if not np.any(before):
-            # Our mjd is before any events
-            same = self.sfMjds < self.eventMjds[0]
-        elif np.all(before):
-            # Our mjd is after all events
-            same = self.sfMjds >= self.eventMjds[-1]
-        else:
-            # Our mjd is between two events, get index of preceding one
-            precede = np.where(before)[0][-1]
-            same = np.logical_and(self.sfMjds>=self.eventMjds[precede],
-                                  self.sfMjds <self.eventMjds[precede+1])
-        
-        if not same.any():
-            # No star flats in the same event interval.
-            return self.nogood
-        sameIndices = np.where(same)[0]
-        closest = np.argmin(np.abs(self.sfMjds[same]-mjd))
-        return self.sfEpochs[sameIndices[closest]]
+        '''A function class that applies lookup tables to colors from DECam griz or Gaia bp-rp to yield
+        modal DECam g-i color for stars of given color.  For use in DECam astrometric corrections.'''
+
+        # Build the LUTs
+        self.lut = {0: lambda c:c}  # Identify for c=g-i
+        # c=1 for r-z
+        cgi = np.array([ [+0.213, +0.62974],[+0.281, +0.76145],[+0.350, +0.89118],[+0.419, +1.03354],[+0.488, +1.16993],
+                         [+0.556, +1.31010],[+0.625, +1.43978],[+0.694, +1.55955],[+0.762, +1.69363],[+0.831, +1.78694],
+                         [+0.900, +1.87093],[+0.968, +1.95833],[+1.037, +2.04732],[+1.106, +2.12380],[+1.175, +2.19398],
+                         [+1.243, +2.26417],[+1.312, +2.33342],[+1.381, +2.39121],[+1.449, +2.44899],[+1.518, +2.50711],
+                         [+1.587, +2.56154],[+1.655, +2.61501],[+1.724, +2.66849],[+1.793, +2.72167],[+1.862, +2.77487],
+                         [+1.930, +2.82807],[+1.999, +2.88029],[+2.068, +2.92684],[+2.136, +2.97458],[+2.205, +3.02232],
+                         [+2.274, +3.03318],[+2.342, +3.03152],[+2.411, +3.02985],[+2.480, +2.97022],[+2.549, +2.81817],
+                         [+2.617, +2.67112],[+2.686, +2.52818]])
+        self.lut[1] = interp1d(*cgi.T, kind='linear', bounds_error=False, fill_value='extrapolate')
+
+        # c=2 for r-i
+        cgi = np.array([ [+0.168, +0.69850],[+0.215, +0.84963],[+0.263, +1.00121],[+0.311, +1.14671],[+0.358, +1.29264],
+                         [+0.406, +1.42588],[+0.453, +1.55002],[+0.501, +1.69622],[+0.548, +1.77039],[+0.596, +1.84978],
+                         [+0.643, +1.93751],[+0.691, +2.02799],[+0.738, +2.11881],[+0.786, +2.18230],[+0.833, +2.24579],
+                         [+0.881, +2.31035],[+0.929, +2.37114],[+0.976, +2.42488],[+1.024, +2.47862],[+1.071, +2.53351],
+                         [+1.119, +2.58704],[+1.166, +2.64057],[+1.214, +2.69410],[+1.261, +2.74842],[+1.309, +2.80261],
+                         [+1.356, +2.85680],[+1.404, +2.90949],[+1.451, +2.95961],[+1.499, +3.00974],[+1.547, +3.05986],
+                         [+1.594, +3.06845],[+1.642, +3.07045],[+1.689, +3.07246],[+1.737, +3.01998],[+1.784, +2.89600],
+                         [+1.832, +2.77881],[+1.879, +2.66295]])
+        self.lut[2] = interp1d(*cgi.T, kind='linear', bounds_error=False, fill_value='extrapolate')
+
+        # c=3 for g-r
+        cgi = np.array([ [+0.473, +0.61569],[+0.514, +0.67445],[+0.554, +0.73321],[+0.594, +0.79132],[+0.635, +0.84942],
+                         [+0.675, +0.90939],[+0.716, +0.96742],[+0.756, +1.02515],[+0.797, +1.08288],[+0.837, +1.14404],
+                         [+0.878, +1.20176],[+0.918, +1.25948],[+0.959, +1.31670],[+0.999, +1.38729],[+1.039, +1.45931],
+                         [+1.080, +1.52914],[+1.120, +1.59506],[+1.161, +1.65923],[+1.201, +1.50902],[+1.242, +1.70546],
+                         [+1.282, +1.84609],[+1.323, +1.95275],[+1.363, +2.08349],[+1.403, +2.23949],[+1.444, +2.38948],
+                         [+1.484, +2.52209],[+1.525, +2.62990],[+1.565, +2.71299],[+1.606, +2.77229],[+1.646, +2.79889],
+                         [+1.687, +2.79145]])
+        self.lut[3] = interp1d(*cgi.T, kind='linear', bounds_error=False, fill_value='extrapolate')
+
+        #c=4 for Gaia bp-rp
+        cgi = np.array([ [+0.829, +0.63470],[+0.904, +0.71517],[+0.979, +0.80412],[+1.053, +0.89107],[+1.128, +0.99223],
+                         [+1.203, +1.08915],[+1.278, +1.18611],[+1.353, +1.28663],[+1.428, +1.38774],[+1.503, +1.48995],
+                         [+1.578, +1.59112],[+1.652, +1.69052],[+1.727, +1.78321],[+1.802, +1.87394],[+1.877, +1.95449],
+                         [+1.952, +2.03678],[+2.027, +2.11540],[+2.102, +2.18226],[+2.176, +2.24625],[+2.251, +2.30908],
+                         [+2.326, +2.37816],[+2.401, +2.44290],[+2.476, +2.50697],[+2.551, +2.57278],[+2.626, +2.61841],
+                         [+2.701, +2.66405],[+2.775, +2.70088],[+2.850, +2.71635],[+2.925, +2.73183],[+3.000, +2.73308],
+                         [+3.075, +2.72145],[+3.150, +2.70983],[+3.225, +2.71390],[+3.299, +2.72286],[+3.374, +2.73182]])
+        self.lut[4] = interp1d(*cgi.T, kind='linear', bounds_error=False, fill_value='extrapolate')
+
+    def __call__(self, vals, c):
+        '''Convert colors other than g-i to the g-i that gives equivalent
+        mean DCR in g band.  If input color is >10, output will be 99.,
+        as a no-data flag value.  
+
+        First argument is an array of color values.
+        The last argument is the input color system:
+        0:  g-i (identity transformation in this case)
+        1:  r-z
+        2:  r-i
+        3:  g-r (avoid this)
+        4:  Gaia bp-rp
+        '''
+        return np.where(vals < 10, self.lut[c](vals), 99.)
