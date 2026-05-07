@@ -2,7 +2,6 @@
 '''
 Example program for use with value-added DES astrometry solutions
 '''
-from __future__ import print_function
 import os
 import numpy as np
 from pixmappy import DESMaps, Gnomonic

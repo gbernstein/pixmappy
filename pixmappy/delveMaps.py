@@ -206,7 +206,7 @@ class Trap(PixelMap):
     tab = None
     trapfile = files.default_delve_traps
     
-    def __init__(self, **kwargs):
+    def __init__(self, name, **kwargs):
         '''This PixelMap applies nominal serial trap correction
         to the x pixel coordinate based on lookup tables.  It does
         *not* apply a correction to the y coordinate of objects
@@ -224,6 +224,9 @@ class Trap(PixelMap):
         `trapfile`: Any desired alternative trap table to load.
            (Only works for first instance created, since table is static)
         '''
+
+        super(Trap,self).__init__(name)
+        
         if Trap.tab is None:
             # Need to load the table
             if 'trapfile' in kwargs:
@@ -235,7 +238,7 @@ class Trap(PixelMap):
                 raise ValueError('Attempt to change trap table after opening')
         
         self.ccdnum = kwargs['ccdnum']
-        use = Trap.tab['ccdnum']==ccdnum
+        use = Trap.tab['ccdnum']==self.ccdnum
         if not np.any(use):
             # No traps for this CCD
             self.dx = None
@@ -261,11 +264,11 @@ class Trap(PixelMap):
                     if f>0:
                         dv.append((1-f)*kv[1,j] + f*kv[1,j+1])
                         break
-        self.dx = -np.array(self.dv) / 264.   # Change from mas of v to pixels of x
+        self.dx = -np.array(dv) / 264.   # Change from mas of v to pixels of x
         return
     def __get_dx(self,x):
         '''Evaluate the shift for an array of x values'''
-        dx = np.zeros_like(x)
+        dx = np.zeros_like(x,dtype=float)
         if self.dx is None:
             # No traps
             pass
@@ -276,7 +279,7 @@ class Trap(PixelMap):
     
     def __call__(self, x, y, c=None):
         '''Apply shifts to x, if any'''
-        xx = np.array(y)
+        xx = np.array(x)
         if self.dx is not None:
             xx += self.__get_dx(xx)
         return xx, np.array(y)
@@ -457,7 +460,7 @@ class DelveMaps(PixelMapCollection):
                                 'band':band,
                                 'ccdnum':detpos2ccdnum[detpos],
                                 'nite':nite}})
-                    
+        return name         
 
     def getDelveMap(self, expnum, detpos):
         '''Acquire PixelMap for specified exposure number / CCD combination.
@@ -480,7 +483,6 @@ class DelveMaps(PixelMapCollection):
         :param detpos:  CCD number or detpos string for desired `WCS`
         :returns: A valid `WCS` for this exposure/CCD
         '''
-
         detpos = arg2detpos(detpos)
         name = self.wcsName.format(expnum,detpos)
         if not self.hasWCS(name):
