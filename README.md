@@ -5,12 +5,10 @@ Python interface to gbdes pixel map (astrometry) solutions
 
 A `WCS` is a `PixelMap` that additionally specifies a (de)projection from the world 2d system onto the celestial sphere.  It uses `astropy.coordinates.SkyCoord` objects to represent celestial positions, and has `toSky` and `toPix` methods to map between the pixel system and `SkyCoord`s.  
 
-The YAML deserialization is the slow part, using `PyYAML`.  `PixelMapCollection` will first try to use the C-based YAML loader, which requires libyaml to be available.  If this fails it falls back to the 20x slower all-Python loader.
-
 The type of mapping that can be expressed is very flexible, and `PixelMaps` can be compounded into chains of tranformations.  See the `gbdes` source files for more documentation on the types of transformations available and their YAML encodings.  One type of map is a `TemplateMap`, which uses a lookup table stored in some other YAML file.  Various template files required for DECam solutions are part of this repository.  The setup area will be searched automatically for requested template files.  Additional paths to search can be specified by the `CAL_PATH` environment variable, using the usual colon-separated list format.
 
 ## DELVE Astrometric solutions
-As of v1.2.0, there is a `DelveMap` class (derived from `PixelMapCollection` that will return a `WCS` or `PixelMap` instance for any combination of DECam exposure number and CCD identifier. The repository includes the relevant calibration files, which will automatically be found by the code.  _v1.2.0 does not yet include some final details of the DECam solutions nor cover all the exposures - these will be added in later versions._ 
+As of v2.0.0, there is a `DelveMap` class (derived from `PixelMapCollection` that will return a `WCS` or `PixelMap` instance for any combination of DECam exposure number and CCD identifier. The repository includes the relevant calibration files, which will automatically be found by the code.  _v2.0.0 does not yet include the final table of exposure WCS information.  Get the latest  from Gary._ 
 
 The basic steps to using these solutions are:
 * Acquire this repository and run `pip install .` from the top level directory of the repo, with your target Python environment activated.
@@ -28,13 +26,20 @@ The basic steps to using these solutions are:
 * Note that the color argument `c` is assumed to be _g-i_ for the DECam
   data.  A value is required, since the solutions include differential
   chromatic refraction in the atmosphere and lateral
-  color in the corrector.  Use a value of `c=0.61` if you don't know
+  color in the corrector.  Use a value of `c=pixmappy.REF_COLOR` if you don't know
   your true color and want something that is not crazy.
 * If you request a solution for an exposure/CCD pair that is not in
   the solution set, a `ValueError` exception will be raised.
+* There are serial traps affecting certain focal plane regions at certain times, which shift the apparent star centroids.  A nominal correction is applied to the resultant v or Dec component, but the correction is uncertainty by roughly its size. To find out the size of trap correction applied to points on some `expnum,ccdnum`, you can get a realization of the `Trap` map and query it as follows:
+```python
+  trapName = dmc.trapMapFor(expnum,ccdnum)
+  trapMap = dmc.getMap(trapName)
+  trap[use] = trapMap.mas(x,y)
+```
+to obtain a vector of trap correction sizes in milliarcsec.
 
 ### Additional exposure information
-The file `delveExposures.hdf5` included the repo's `data/` directory includes additional information about each exposure that could be of use.  This table can be read as an `astropy.table.Table` and includes the following columns:
+The file `delveExposures.hdf5` included the repo's `data/` directory includes additional information about each exposure that could be of use.  This table can be read as an `astropy.table.Table` and includes the following columns _(not yet loaded into repo)_.
 
 * __expnum__: DECam exposure number
 * __band__: Filter used, one of _griz_.
