@@ -830,6 +830,7 @@ class Gnomonic:
     the sky.  Can be used to go between xi,eta coordinates and ra,dec.
     All xy units are assumed to be in degrees as are the ra, dec, and PA of
     the projection pole.  Uses astropy.coordinates.
+    All calculations are forced to 64-bit arithmetic.
     '''
     @staticmethod
     def type():
@@ -844,9 +845,11 @@ class Gnomonic:
         :param ra,dec: ICRS RA and Declination of the pole of the projection.
         :param rotation: position angle (in degrees) of the projection axes.
         '''
-        self.pole_ra = ra
-        self.pole_dec = dec
-        self.rotation = rotation
+        # Force all calculations to be done in float64 even if input pole is
+        # float32.
+        self.pole_ra = np.float64(ra)
+        self.pole_dec = np.float64(dec)
+        self.rotation = np.float64(rotation)
         self.frame = None
 
     def _set_frame(self):
@@ -864,8 +867,8 @@ class Gnomonic:
             deg_per_radian = coord.radians / coord.degrees
             # Coord wants these in radians, not degrees
             # Also, a - sign for x, since astropy uses +ra as +x direction.
-            x /= -deg_per_radian
-            y /= deg_per_radian
+            x = np.float64(x) / -deg_per_radian
+            y = np.float64(y) /  deg_per_radian
             # apply rotation
             if self.rotation != 0.:
                 # TODO: I'm not sure if I have the sense of the rotation correct here.
@@ -883,7 +886,7 @@ class Gnomonic:
             if self.frame is None: self._set_frame()
 
             # Get the y and z components of unit-sphere coords, x on pole axis
-            y, z = x, y
+            y, z = np.float64(x), np.float64(y)
             y *= np.pi / 180.
             z *= np.pi / 180.
             temp = np.sqrt(1 + y*y + z*z)
@@ -903,8 +906,8 @@ class Gnomonic:
             pole = coord.CelestialCoord(self.pole_ra * coord.degrees,
                                         self.pole_dec * coord.degrees)
             deg_per_radian = coord.radians / coord.degrees
-            ra /= deg_per_radian
-            dec /= deg_per_radian
+            ra = np.float64(ra) / deg_per_radian
+            dec = np.float64(dec) / deg_per_radian
             # apply projection
             x, y = pole.project_rad(ra, dec, projection='gnomonic')
             x *= -deg_per_radian
@@ -918,7 +921,7 @@ class Gnomonic:
         except ImportError:
             if self.frame is None: self._set_frame()
 
-            coord = co.SkyCoord(ra, dec, unit='deg')
+            coord = co.SkyCoord(np.float64(ra), np.float64(dec), unit='deg')
             s = coord.transform_to(self.frame)
             # Get 3 components on unit sphere
             x = np.cos(s.lat.radian)*np.cos(s.lon.radian)
