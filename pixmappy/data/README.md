@@ -2,6 +2,9 @@ Y6A1 Astrometry Solutions
 
 *Release History:*
 
+Version 2.0 9 Sep 2026 GMB:
+* Includes full DELVE solution set.
+
 Version 1.1 28 July 2019 GMB:
 * Re-solve with g-band differential chromatic refraction coefficient changed 45.0->39.2 mas/mag
 * Also lower the minimum turbulence error ellipse eigenvalues from 5->3 mas.
@@ -12,11 +15,23 @@ Version 1.0 26 July 2019 GMB:
 * solutions for wide survey and shallow SNe
 
 *Summary*
-The files in this directory encode the astrometric solutions derived for all of the "good" wide-survey exposures in the Y6A1 internal data release.  These were derived by matching the Y6A1 FINALCUT cataloged positions of high-S/N stars for all exposures, along with the Gaia DR2 catalog, using the `WCSFit` software described in Bernstein et al (PASP 129:074503 2017) and further documented with the code at https://github.com/gbernstein/gbdes.  The code is updated to allow for proper motion and parallax of all stars, jointly constrained by DECam and DES data.
+The files in this directory encode the astrometric solutions derived for exposures from the Dark Energy Camera (DECam).  Two generations of solutions are saved.  Versions 1.x cover all of the "good" wide-survey exposures in the Y6A1 internal data release.  These were derived by matching the Y6A1 FINALCUT cataloged positions of high-S/N stars for all exposures, along with the Gaia DR2 catalog, using the `WCSFit` software described in Bernstein et al (PASP 129:074503 2017) and further documented with the code at https://github.com/gbernstein/gbdes.  The code is updated to allow for proper motion and parallax of all stars, jointly constrained by DECam and DES data.
+
+In Version 2, we have solutions that cover all of the DES Y6A1 exposures plus a large number of other program's exposures, all extracted from the DELVE collection.  These are improved solutions that supersede the Y6A1 solutions.
 
 These files are meant to be used with the `pixmappy` Python package available at https://github.com/gbernstein/pixmappy.  See the documentation there for instructions for use.  The `pixmappy` code makes the use of these files a turnkey operation, so you do not need to read this doc any further in order to use these solutions.
 
+**Note that the _delveExposures.hdf5_ file that is necessary to use the DELVE exposures is _not supplied_ because it's too large for GitHub.  It must be obtained and place in this directory or somewhere in the CAT_PATH**
+
 *File Contents:*
+
+_delveTweaks5D.hdf5_: Residual 2d CCD corrections for the DELVE solutions.
+
+_epochAffine5D.hdf5_: Time-varying affine solutions for DECam CCDs 2012-2026
+
+_trapTable.hdf5_: Time-dependent record of serial traps in DECam CCDs
+
+_delve.guts.astro_: Update of _y6a1.guts.astro_ that omits aspects of Y6A1 solutions no longer used.
 
 _y6a1.guts.astro_: This is the YAML-format specification of the instrumental portion of the astrometric solutions.  This includes the per-CCD polynomials describing the optical distortions; the lateral color terms (g and r bands only); the "tree ring" and edge distortions in the detectors; and the "epoch ccdshift" terms specifying the positional shifts of the individual CCDs between temperature cyclings of the camera.
 
